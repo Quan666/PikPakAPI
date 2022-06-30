@@ -47,6 +47,8 @@ class PikPakAPI:
             proxies=self.proxy,
         )
         user_info = response.json()
+        if "error" in user_info:
+            raise Exception(f"登录错误：{user_info['error_description']}")
         self.headers["Authorization"] = f"Bearer {user_info['access_token']}"
         self.headers["Host"] = "api-drive.mypikpak.com"
         self.user_info = user_info
