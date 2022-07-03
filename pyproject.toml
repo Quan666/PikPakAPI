@@ -5,9 +5,6 @@ description = "PikPakAPI"
 authors = ["Quan666 <i@Rori.eMail>"]
 license = "GPL-3.0-only"
 readme = "README.md"
-packages = [
-    { include = "pikpak" },
-]
 homepage = "https://github.com/Quan666/PikPakAPI"
 repository = "https://github.com/Quan666/PikPakAPI"
 keywords = ["pikpak", "api"]

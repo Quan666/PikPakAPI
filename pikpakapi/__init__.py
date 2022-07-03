@@ -1,4 +1,3 @@
-from weakref import proxy
 import requests
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
 

@@ -1,5 +1,5 @@
 import json
-from pikpak import PikPakAPI
+from pikpakapi import PikPakAPI
 
 if __name__ == "__main__":
 
