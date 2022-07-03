@@ -175,12 +175,12 @@ class PikPakAPI:
         result = self._request_get(list_url, list_data, self.get_headers(), self.proxy)
         return result
 
-    def offline_file_info(self, task_id: str):
+    def offline_file_info(self, file_id: str):
         """
-        task_id: str - 离线下载任务id
+        file_id: str - 离线下载文件id
         离线下载文件信息
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{task_id}"
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}"
         result = self._request_get(
             url, {"thumbnail_size": "SIZE_LARGE"}, self.get_headers(), self.proxy
         )
