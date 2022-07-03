@@ -8,6 +8,7 @@ if __name__ == "__main__":
         password="your_password",
         proxy="127.0.0.1:7890",
     )
+    client.login()
     print(json.dumps(client.get_user_info(), indent=4))
     print("=" * 30, end="\n\n")
 
