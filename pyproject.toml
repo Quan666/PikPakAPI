@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "PikPakAPI"
+version = "0.0.1"
+description = "PikPakAPI"
+authors = ["Quan666 <i@Rori.eMail>"]
+license = "GPL-3.0-only"
+readme = "README.md"
+packages = [
+    { include = "pikpak" },
+]
+homepage = "https://github.com/Quan666/PikPakAPI"
+repository = "https://github.com/Quan666/PikPakAPI"
+keywords = ["pikpak", "api"]
+
+[tool.poetry.dependencies]
+python = "^3.8.3"
+requests = "^2.27.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
