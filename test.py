@@ -1,9 +1,9 @@
 import json
-from pikpakapi import PikPakAPI
+from pikpakapi import PikPakApi
 
 if __name__ == "__main__":
 
-    client = PikPakAPI(
+    client = PikPakApi(
         username="your_username",
         password="your_password",
         proxy="127.0.0.1:7890",
