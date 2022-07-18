@@ -1,3 +1,4 @@
+from typing import List
 import httpx
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
 
@@ -148,9 +149,11 @@ class PikPakApiAsync:
             "refresh_token": self.refresh_token,
         }
 
-    async def offline_download(self, file_url: str):
+    async def offline_download(self, file_url: str, parent_id: str = None):
         """
         file_url: str - 文件链接
+        parent_id: str - 父文件夹id, 不传默认存储到 My Pack
+
         离线下载磁力链
         """
         download_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
@@ -160,10 +163,62 @@ class PikPakApiAsync:
             "upload_type": "UPLOAD_TYPE_URL",
             "url": {"url": file_url},
             "folder_type": "DOWNLOAD",
+            "parent_id": parent_id,
         }
         result = await self._request_post(
             download_url, download_data, self.get_headers(), self.proxy
         )
+        return result
+
+    async def create_folder(self, name: str = "新建文件夹", parent_id: str = None):
+        """
+        name: str - 文件夹名称
+        parent_id: str - 父文件夹id, 默认创建到根目录
+        创建文件夹
+        """
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
+        data = {
+            "kind": "drive#folder",
+            "name": name,
+            "parent_id": parent_id,
+        }
+        result = await self._request_post(url, data, self.get_headers(), self.proxy)
+        return result
+
+    async def delete_to_trash(self, ids: List[str]):
+        """
+        ids: List[str] - 文件夹、文件id列表
+        将文件夹、文件移动到回收站
+        """
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchTrash"
+        data = {
+            "ids": ids,
+        }
+        result = await self._request_post(url, data, self.get_headers(), self.proxy)
+        return result
+
+    async def untrash(self, ids: List[str]):
+        """
+        ids: List[str] - 文件夹、文件id列表
+        将文件夹、文件移出回收站
+        """
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchUntrash"
+        data = {
+            "ids": ids,
+        }
+        result = await self._request_post(url, data, self.get_headers(), self.proxy)
+        return result
+
+    async def delete_forever(self, ids: List[str]):
+        """
+        ids: List[str] - 文件夹、文件id列表
+        永远删除文件夹、文件, 慎用
+        """
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchDelete"
+        data = {
+            "ids": ids,
+        }
+        result = await self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
     async def offline_list(
@@ -195,5 +250,46 @@ class PikPakApiAsync:
         url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}"
         result = await self._request_get(
             url, {"thumbnail_size": "SIZE_LARGE"}, self.get_headers(), self.proxy
+        )
+        return result
+
+    async def file_list(
+        self, size: int = 100, parent_id: str = None, next_page_token: str = None
+    ) -> dict:
+        """
+        size: int - 每次请求的数量
+        parent_id: str - 父文件夹id, 默认列出根目录
+        next_page_token: str - 下一页的page token
+        获取文件列表
+        """
+        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
+        list_data = {
+            "parent_id": parent_id,
+            "thumbnail_size": "SIZE_MEDIUM",
+            "limit": size,
+            "with_audit": "true",
+            "next_page_token": next_page_token,
+            "filters": """{"trashed":{"eq":false},"phase":{"eq":"PHASE_TYPE_COMPLETE"}}""",
+        }
+        result = await self._request_get(
+            list_url, list_data, self.get_headers(), self.proxy
+        )
+        return result
+
+    async def events(self, size: int = 100, next_page_token: str = None) -> dict:
+        """
+        size: int - 每次请求的数量
+        next_page_token: str - 下一页的page token
+
+        获取最近添加事件列表
+        """
+        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/events"
+        list_data = {
+            "thumbnail_size": "SIZE_MEDIUM",
+            "limit": size,
+            "next_page_token": next_page_token,
+        }
+        result = await self._request_get(
+            list_url, list_data, self.get_headers(), self.proxy
         )
         return result
