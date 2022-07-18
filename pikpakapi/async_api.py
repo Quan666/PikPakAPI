@@ -149,20 +149,23 @@ class PikPakApiAsync:
             "refresh_token": self.refresh_token,
         }
 
-    async def offline_download(self, file_url: str, parent_id: str = None):
+    async def offline_download(
+        self, file_url: str, parent_id: str = None, name: str = None
+    ):
         """
         file_url: str - 文件链接
         parent_id: str - 父文件夹id, 不传默认存储到 My Pack
+        name: str - 文件名, 不传默认为文件链接的文件名
 
         离线下载磁力链
         """
         download_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
         download_data = {
             "kind": "drive#file",
-            "name": "",
+            "name": name,
             "upload_type": "UPLOAD_TYPE_URL",
             "url": {"url": file_url},
-            "folder_type": "DOWNLOAD",
+            "folder_type": "DOWNLOAD" if not parent_id else "",
             "parent_id": parent_id,
         }
         result = await self._request_post(
