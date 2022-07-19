@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 import requests
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
 
@@ -47,7 +47,7 @@ class PikPakApi:
 
         self.user_id = None
 
-    def get_headers(self, access_token: str = None):
+    def get_headers(self, access_token: str = None) -> Dict[str, str]:
         """
         Returns the headers to use for the requests.
         """
@@ -81,7 +81,7 @@ class PikPakApi:
 
     def _request_post(
         self, url: str, data: dict = None, headers: dict = None, proxies: dict = None
-    ):
+    ) -> Dict[str, Any]:
         response = self.session.post(
             url,
             json=data,
@@ -95,7 +95,7 @@ class PikPakApi:
             raise PikpakException(f"{json_data['error_description']}")
         return json_data
 
-    def login(self):
+    def login(self) -> None:
         """
         Login to PikPak
         """
@@ -113,7 +113,7 @@ class PikPakApi:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
 
-    def refresh_access_token(self):
+    def refresh_access_token(self) -> None:
         """
         Refresh access token
         """
@@ -130,7 +130,7 @@ class PikPakApi:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
 
-    def get_user_info(self):
+    def get_user_info(self) -> Dict[str, str]:
         """
         Get user info
         """
@@ -141,7 +141,9 @@ class PikPakApi:
             "refresh_token": self.refresh_token,
         }
 
-    def offline_download(self, file_url: str, parent_id: str = None, name: str = None):
+    def offline_download(
+        self, file_url: str, parent_id: str = None, name: str = None
+    ) -> Dict[str, Any]:
         """
         file_url: str - 文件链接
         parent_id: str - 父文件夹id, 不传默认存储到 My Pack
@@ -163,7 +165,9 @@ class PikPakApi:
         )
         return result
 
-    def create_folder(self, name: str = "新建文件夹", parent_id: str = None):
+    def create_folder(
+        self, name: str = "新建文件夹", parent_id: str = None
+    ) -> Dict[str, Any]:
         """
         name: str - 文件夹名称
         parent_id: str - 父文件夹id, 默认创建到根目录
@@ -178,7 +182,7 @@ class PikPakApi:
         result = self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    def delete_to_trash(self, ids: List[str]):
+    def delete_to_trash(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         将文件夹、文件移动到回收站
@@ -190,7 +194,7 @@ class PikPakApi:
         result = self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    def untrash(self, ids: List[str]):
+    def untrash(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         将文件夹、文件移出回收站
@@ -202,7 +206,7 @@ class PikPakApi:
         result = self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    def delete_forever(self, ids: List[str]):
+    def delete_forever(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         永远删除文件夹、文件, 慎用
@@ -214,7 +218,9 @@ class PikPakApi:
         result = self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    def offline_list(self, size: int = 10000, next_page_token: str = None) -> dict:
+    def offline_list(
+        self, size: int = 10000, next_page_token: str = None
+    ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         next_page_token: str - 下一页的page token
@@ -231,7 +237,7 @@ class PikPakApi:
         result = self._request_get(list_url, list_data, self.get_headers(), self.proxy)
         return result
 
-    def offline_file_info(self, file_id: str):
+    def offline_file_info(self, file_id: str) -> Dict[str, Any]:
         """
         file_id: str - 离线下载文件id
         离线下载文件信息
@@ -244,7 +250,7 @@ class PikPakApi:
 
     def file_list(
         self, size: int = 100, parent_id: str = None, next_page_token: str = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         parent_id: str - 父文件夹id, 默认列出根目录, 传入 * 为回收站
@@ -263,7 +269,7 @@ class PikPakApi:
         result = self._request_get(list_url, list_data, self.get_headers(), self.proxy)
         return result
 
-    def events(self, size: int = 100, next_page_token: str = None) -> dict:
+    def events(self, size: int = 100, next_page_token: str = None) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         next_page_token: str - 下一页的page token

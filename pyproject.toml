@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "PikPakAPI"
-version = "0.0.5"
+version = "0.0.6"
 description = "PikPakAPI"
 authors = ["Quan666 <i@Rori.eMail>"]
 license = "GPL-3.0-only"

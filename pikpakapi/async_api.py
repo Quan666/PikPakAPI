@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 import httpx
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
 
@@ -51,7 +51,7 @@ class PikPakApiAsync:
 
         self.user_id = None
 
-    def get_headers(self, access_token: str = None):
+    def get_headers(self, access_token: str = None) -> Dict[str, str]:
         """
         Returns the headers to use for the requests.
         """
@@ -73,7 +73,7 @@ class PikPakApiAsync:
         params: dict = None,
         headers: dict = None,
         proxies: httpx.Proxy = None,
-    ):
+    ) -> Dict[str, Any]:
         async with httpx.AsyncClient(proxies=proxies) as client:
             response = await client.get(url, params=params, headers=headers)
             json_data = response.json()
@@ -91,7 +91,7 @@ class PikPakApiAsync:
         data: dict = None,
         headers: dict = None,
         proxies: httpx.Proxy = None,
-    ):
+    ) -> Dict[str, Any]:
         async with httpx.AsyncClient(proxies=proxies) as client:
             response = await client.post(url, json=data, headers=headers)
             json_data = response.json()
@@ -103,7 +103,7 @@ class PikPakApiAsync:
                 raise PikpakException(f"{json_data['error_description']}")
             return json_data
 
-    async def login(self):
+    async def login(self) -> None:
         """
         Login to PikPak
         """
@@ -121,7 +121,7 @@ class PikPakApiAsync:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
 
-    async def refresh_access_token(self):
+    async def refresh_access_token(self) -> None:
         """
         Refresh access token
         """
@@ -138,7 +138,7 @@ class PikPakApiAsync:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
 
-    def get_user_info(self):
+    def get_user_info(self) -> Dict[str, str]:
         """
         Get user info
         """
@@ -151,7 +151,7 @@ class PikPakApiAsync:
 
     async def offline_download(
         self, file_url: str, parent_id: str = None, name: str = None
-    ):
+    ) -> Dict[str, Any]:
         """
         file_url: str - 文件链接
         parent_id: str - 父文件夹id, 不传默认存储到 My Pack
@@ -173,7 +173,9 @@ class PikPakApiAsync:
         )
         return result
 
-    async def create_folder(self, name: str = "新建文件夹", parent_id: str = None):
+    async def create_folder(
+        self, name: str = "新建文件夹", parent_id: str = None
+    ) -> Dict[str, Any]:
         """
         name: str - 文件夹名称
         parent_id: str - 父文件夹id, 默认创建到根目录
@@ -188,7 +190,7 @@ class PikPakApiAsync:
         result = await self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    async def delete_to_trash(self, ids: List[str]):
+    async def delete_to_trash(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         将文件夹、文件移动到回收站
@@ -200,7 +202,7 @@ class PikPakApiAsync:
         result = await self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    async def untrash(self, ids: List[str]):
+    async def untrash(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         将文件夹、文件移出回收站
@@ -212,7 +214,7 @@ class PikPakApiAsync:
         result = await self._request_post(url, data, self.get_headers(), self.proxy)
         return result
 
-    async def delete_forever(self, ids: List[str]):
+    async def delete_forever(self, ids: List[str]) -> Dict[str, Any]:
         """
         ids: List[str] - 文件夹、文件id列表
         永远删除文件夹、文件, 慎用
@@ -226,7 +228,7 @@ class PikPakApiAsync:
 
     async def offline_list(
         self, size: int = 10000, next_page_token: str = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         next_page_token: str - 下一页的page token
@@ -245,7 +247,7 @@ class PikPakApiAsync:
         )
         return result
 
-    async def offline_file_info(self, file_id: str):
+    async def offline_file_info(self, file_id: str) -> Dict[str, Any]:
         """
         file_id: str - 离线下载文件id
         离线下载文件信息
@@ -258,7 +260,7 @@ class PikPakApiAsync:
 
     async def file_list(
         self, size: int = 100, parent_id: str = None, next_page_token: str = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         parent_id: str - 父文件夹id, 默认列出根目录
@@ -279,7 +281,9 @@ class PikPakApiAsync:
         )
         return result
 
-    async def events(self, size: int = 100, next_page_token: str = None) -> dict:
+    async def events(
+        self, size: int = 100, next_page_token: str = None
+    ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         next_page_token: str - 下一页的page token
