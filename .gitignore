@@ -1,3 +1,4 @@
 test-local.py
 __pycache__
 dist
+.vscode

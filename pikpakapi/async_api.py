@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 import httpx
+from .enums import DownloadStatus
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
 
 
@@ -76,6 +77,7 @@ class PikPakApiAsync:
     ) -> Dict[str, Any]:
         async with httpx.AsyncClient(proxies=proxies) as client:
             response = await client.get(url, params=params, headers=headers)
+
             json_data = response.json()
             if "error" in json_data:
                 if json_data["error_code"] == 16:
@@ -300,3 +302,97 @@ class PikPakApiAsync:
             list_url, list_data, self.get_headers(), self.proxy
         )
         return result
+
+    async def offline_task_retry(self, task_id: str) -> Dict[str, Any]:
+        """
+        task_id: str - 离线下载任务id
+        重试离线下载任务
+        """
+        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/task"
+        list_data = {
+            "type": "offline",
+            "create_type": "RETRY",
+            "id": task_id,
+        }
+        try:
+            result = await self._request_get(
+                list_url, list_data, self.get_headers(), self.proxy
+            )
+            return result
+        except Exception as e:
+            raise PikpakException(f"重试离线下载任务失败: {task_id}")
+
+    async def get_task_status(self, task_id: str, file_id: str) -> DownloadStatus:
+        """
+        task_id: str - 离线下载任务id
+        file_id: str - 离线下载文件id
+        获取离线下载任务状态, 临时实现, 后期可能变更
+        """
+        try:
+            infos = await self.offline_list()
+            if infos and infos.get("tasks", []):
+                for task in infos.get("tasks", []):
+                    if task_id == task.get("id"):
+                        return DownloadStatus.downloading
+            file_info = await self.offline_file_info(file_id=file_id)
+            if file_info:
+                return DownloadStatus.done
+            else:
+                return DownloadStatus.not_found
+        except PikpakAccessTokenExpireException as e:
+            await self.login()
+            await self.get_task_status(task_id, file_id)
+        except PikpakException as e:
+            return DownloadStatus.error
+
+    async def path_to_id(self, path: str, create: bool = False) -> List[str]:
+        """
+        path: str - 路径
+        create: bool - 是否创建不存在的文件夹
+        将形如 /path/a/b 的路径转换为 文件夹的id
+        """
+        if not path or len(path) <= 0:
+            return None
+        paths = path.split("/")
+        paths = [p.strip() for p in paths if len(p) > 0]
+        path_ids = []
+        count = 0
+        next_page_token = None
+        parent_id = None
+        while count < len(paths):
+            data = await self.file_list(
+                parent_id=parent_id, next_page_token=next_page_token
+            )
+            id = ""
+            for f in data.get("files", []):
+                if (
+                    f.get("kind", "") == "drive#folder"
+                    and f.get("name") == paths[count]
+                ):
+                    id = f.get("id")
+                    break
+            if id:
+                path_ids.append(
+                    {
+                        "id": id,
+                        "name": paths[count],
+                    }
+                )
+                count += 1
+                parent_id = id
+            elif data.get("next_page_token"):
+                next_page_token = data.get("next_page_token")
+            elif create:
+                data = await self.create_folder(name=paths[count], parent_id=parent_id)
+                id = data.get("file").get("id")
+                path_ids.append(
+                    {
+                        "id": id,
+                        "name": paths[count],
+                    }
+                )
+                count += 1
+                parent_id = id
+            else:
+                break
+        return path_ids
