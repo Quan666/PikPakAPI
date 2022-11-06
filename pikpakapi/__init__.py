@@ -503,3 +503,17 @@ class PikPakApi:
         else:
             result = await self.file_batch_copy(ids=from_ids, to_parent_id=to_parent_id)
         return result
+
+    async def get_download_url(self, id: str) -> Dict[str, Any]:
+        """
+        id: str - 文件id
+
+        获取文件的下载链接
+        返回结果中的 web_content_link 字段
+        """
+        result = await self._request_get(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}?usage=FETCH",
+            headers=self.get_headers(),
+            proxies=self.proxy,
+        )
+        return result
