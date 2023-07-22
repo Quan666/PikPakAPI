@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "PikPakAPI"
-version = "0.1.1"
+version = "0.1.2"
 description = "PikPakAPI"
 authors = ["Quan666 <i@Rori.eMail>"]
 license = "GPL-3.0-only"
@@ -11,7 +11,7 @@ keywords = ["pikpak", "api"]
 
 [tool.poetry.dependencies]
 python = "^3.8.3"
-httpx = ">=0.22.0"
+httpx = ">=0.24.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
