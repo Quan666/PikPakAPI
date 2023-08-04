@@ -32,6 +32,11 @@ async def test():
         )
     )
 
+    print(
+        json.dumps(
+            await client.file_rename("VNayNjZtsdmka4YrwZWVj-r4o1", '[Nekomoe kissaten][Deaimon][11][1080p][CHS]_01.mp4'), indent=4
+        )
+    )
 
 if __name__ == "__main__":
     asyncio.run(test())

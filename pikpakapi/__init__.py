@@ -105,6 +105,25 @@ class PikPakApi:
                 raise PikpakException(f"{json_data['error_description']}")
             return json_data
 
+    async def _request_patch(
+        self,
+        url: str,
+        data: dict = None,
+        headers: dict = None,
+        proxies: httpx.Proxy = None,
+    ) -> Dict[str, Any]:
+        async with httpx.AsyncClient(proxies=proxies) as client:
+            response = await client.patch(url, json=data, headers=headers)
+            json_data = response.json()
+            if "error" in json_data:
+                print(json_data)
+                if json_data["error_code"] == 16:
+                    raise PikpakAccessTokenExpireException(
+                        json_data["error_description"]
+                    )
+                raise PikpakException(f"{json_data['error_description']}")
+            return json_data
+
     async def login(self) -> None:
         """
         Login to PikPak
@@ -514,6 +533,25 @@ class PikPakApi:
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}?usage=FETCH",
             headers=self.get_headers(),
+            proxies=self.proxy,
+        )
+        return result
+
+    async def file_rename(self, id: str, new_file_name: str) -> Dict[str, Any]:
+        """
+        id: str - 文件id
+        new_file_name: str - 新的文件名
+
+        重命名文件
+        返回文件的详细信息
+        """
+        data = {
+            "name": new_file_name,
+        }
+        result = await self._request_patch(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}",
+            headers=self.get_headers(),
+            data=data,
             proxies=self.proxy,
         )
         return result
