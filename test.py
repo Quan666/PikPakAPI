@@ -42,14 +42,14 @@ async def test():
 
     print(
         json.dumps(
-            await client.file_batch_star(ids=['VNAhN8CVJXucHoQh6QNKdFGdo1']), indent=4
+            await client.file_batch_star(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1']), indent=4
         )
     )
     print("=" * 30, end="\n\n")
 
     print(
         json.dumps(
-            await client.file_batch_unstar(ids=['VNa_YM4ExtvjwC0zPAMRCjg6o1']), indent=4
+            await client.file_batch_unstar(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1']), indent=4
         )
     )
     print("=" * 30, end="\n\n")
@@ -57,6 +57,13 @@ async def test():
     print(
         json.dumps(
             await client.file_star_list(), indent=4
+        )
+    )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.file_batch_share(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1'], need_password=True)
         )
     )
     print("=" * 30, end="\n\n")

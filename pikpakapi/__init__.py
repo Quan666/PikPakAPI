@@ -603,7 +603,6 @@ class PikPakApi:
     ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
-        parent_id: str - 父文件夹id, 默认列出根目录
         next_page_token: str - 下一页的page token
 
         获取加星标的文件列表，可以获得文件下载链接
@@ -615,6 +614,39 @@ class PikPakApi:
                                       next_page_token=next_page_token,
                                       additional_filters=additional_filters
                                       )
+        return result
+
+    async def file_batch_share(self, ids: List[str],
+                               need_password: Optional[bool] = False,
+                               expiration_days: Optional[int] = -1,
+    ) -> Dict[str, Any]:
+        """
+        ids: List[str] - 文件id列表
+        need_password: Optional[bool] - 是否需要分享密码
+        expiration_days: Optional[int] - 分享天数
+
+        批量分享文件，并生成分享链接
+        返回数据结构：
+        {
+            "share_id": "xxx", //分享ID
+            "share_url": "https://mypikpak.com/s/xxx", // 分享链接
+            "pass_code": "53fe", // 分享密码
+            "share_text": "https://mypikpak.com/s/xxx",
+            "share_list": []
+        }
+        """
+        data = {
+            "file_ids": ids,
+            "share_to": "encryptedlink" if need_password else "publiclink",
+            "expiration_days": expiration_days,
+            "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED"
+        }
+        result = await self._request_post(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share",
+            headers=self.get_headers(),
+            data=data,
+            proxies=self.proxy,
+        )
         return result
 
     async def get_quota_info(self) -> Dict[str, Any]:
