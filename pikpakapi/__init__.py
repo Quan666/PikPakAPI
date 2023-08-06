@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+import json
 import httpx
 from .enums import DownloadStatus
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
@@ -290,14 +291,19 @@ class PikPakApi:
         size: int = 100,
         parent_id: Optional[str] = None,
         next_page_token: Optional[str] = None,
+        additional_filters: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
         parent_id: str - 父文件夹id, 默认列出根目录
         next_page_token: str - 下一页的page token
+        additional_filters: Dict[str, Any] - 额外的过滤条件
 
         获取文件列表，可以获得文件下载链接
         """
+        default_filters = {"trashed":{"eq":False},"phase":{"eq":"PHASE_TYPE_COMPLETE"}}
+        if additional_filters:
+            default_filters.update(additional_filters)
         list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
         list_data = {
             "parent_id": parent_id,
@@ -305,7 +311,7 @@ class PikPakApi:
             "limit": size,
             "with_audit": "true",
             "next_page_token": next_page_token,
-            "filters": """{"trashed":{"eq":false},"phase":{"eq":"PHASE_TYPE_COMPLETE"}}""",
+            "filters": json.dumps(default_filters)
         }
         result = await self._request_get(
             list_url, list_data, self.get_headers(), self.proxy
@@ -552,6 +558,118 @@ class PikPakApi:
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}",
             headers=self.get_headers(),
             data=data,
+            proxies=self.proxy,
+        )
+        return result
+
+    async def file_batch_star(self, ids: List[str],) -> Dict[str, Any]:
+        """
+        ids: List[str] - 文件id列表
+
+        批量给文件加星标
+        """
+        data = {
+            "ids": ids,
+        }
+        result = await self._request_post(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:star",
+            headers=self.get_headers(),
+            data=data,
+            proxies=self.proxy,
+        )
+        return result
+
+    async def file_batch_unstar(self, ids: List[str],) -> Dict[str, Any]:
+        """
+        ids: List[str] - 文件id列表
+
+        批量给文件取消星标
+        """
+        data = {
+            "ids": ids,
+        }
+        result = await self._request_post(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:unstar",
+            headers=self.get_headers(),
+            data=data,
+            proxies=self.proxy,
+        )
+        return result
+
+    async def file_star_list(
+        self,
+        size: int = 100,
+        next_page_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        size: int - 每次请求的数量
+        next_page_token: str - 下一页的page token
+
+        获取加星标的文件列表，可以获得文件下载链接
+        parent_id只可取默认值*，子目录列表通过获取星标目录以后自行使用file_list方法获取
+        """
+        additional_filters = {"system_tag":{"in":"STAR"}}
+        result = await self.file_list(size=size,
+                                      parent_id="*",
+                                      next_page_token=next_page_token,
+                                      additional_filters=additional_filters
+                                      )
+        return result
+
+    async def file_batch_share(self, ids: List[str],
+                               need_password: Optional[bool] = False,
+                               expiration_days: Optional[int] = -1,
+    ) -> Dict[str, Any]:
+        """
+        ids: List[str] - 文件id列表
+        need_password: Optional[bool] - 是否需要分享密码
+        expiration_days: Optional[int] - 分享天数
+
+        批量分享文件，并生成分享链接
+        返回数据结构：
+        {
+            "share_id": "xxx", //分享ID
+            "share_url": "https://mypikpak.com/s/xxx", // 分享链接
+            "pass_code": "53fe", // 分享密码
+            "share_text": "https://mypikpak.com/s/xxx",
+            "share_list": []
+        }
+        """
+        data = {
+            "file_ids": ids,
+            "share_to": "encryptedlink" if need_password else "publiclink",
+            "expiration_days": expiration_days,
+            "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED"
+        }
+        result = await self._request_post(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share",
+            headers=self.get_headers(),
+            data=data,
+            proxies=self.proxy,
+        )
+        return result
+
+    async def get_quota_info(self) -> Dict[str, Any]:
+        """
+        获取当前空间的quota信息
+        返回数据结构如下：
+        {
+            "kind": "drive#about",
+            "quota": {
+                "kind": "drive#quota",
+                "limit": "10995116277760", //空间总大小， 单位Byte
+                "usage": "5113157556024", // 已用空间大小，单位Byte
+                "usage_in_trash": "1281564700871", // 回收站占用大小，单位Byte
+                "play_times_limit": "-1",
+                "play_times_usage": "0"
+            },
+            "expires_at": "",
+            "quotas": {}
+        }
+        """
+        result = await self._request_get(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/about",
+            headers=self.get_headers(),
             proxies=self.proxy,
         )
         return result

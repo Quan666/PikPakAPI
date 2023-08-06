@@ -10,7 +10,7 @@ async def test():
         proxy="127.0.0.1:7890",
     )
     await client.login()
-    print(json.dumps(await client.get_user_info(), indent=4))
+    print(json.dumps(client.get_user_info(), indent=4))
     print("=" * 30, end="\n\n")
 
     print(
@@ -31,12 +31,49 @@ async def test():
             await client.offline_file_info("VN5omQUMRn5NlHL8lMt91q5Io1"), indent=4
         )
     )
+    print("=" * 30, end="\n\n")
 
     print(
         json.dumps(
             await client.file_rename("VNayNjZtsdmka4YrwZWVj-r4o1", '[Nekomoe kissaten][Deaimon][11][1080p][CHS]_01.mp4'), indent=4
         )
     )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.file_batch_star(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1']), indent=4
+        )
+    )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.file_batch_unstar(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1']), indent=4
+        )
+    )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.file_star_list(), indent=4
+        )
+    )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.file_batch_share(ids=['VN6qSS-FBcaI6l7YltWsjUU1o1'], need_password=True)
+        )
+    )
+    print("=" * 30, end="\n\n")
+
+    print(
+        json.dumps(
+            await client.get_quota_info(), indent=4
+        )
+    )
+    print("=" * 30, end="\n\n")
 
 if __name__ == "__main__":
     asyncio.run(test())
