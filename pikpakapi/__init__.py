@@ -310,7 +310,7 @@ class PikPakApi:
             "thumbnail_size": "SIZE_MEDIUM",
             "limit": size,
             "with_audit": "true",
-            "next_page_token": next_page_token,
+            "page_token": next_page_token,
             "filters": json.dumps(default_filters)
         }
         result = await self._request_get(
@@ -420,7 +420,7 @@ class PikPakApi:
                 )
                 count += 1
                 parent_id = id
-            elif data.get("next_page_token"):
+            elif data.get("next_page_token") and (not next_page_token or next_page_token != data.get("next_page_token")):
                 next_page_token = data.get("next_page_token")
             elif create:
                 data = await self.create_folder(name=paths[count], parent_id=parent_id)
