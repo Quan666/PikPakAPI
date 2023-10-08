@@ -53,6 +53,8 @@ class PikPakApi:
 
         self.user_id = None
 
+        self._path_id_cache = {}
+
     def get_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
         """
         Returns the headers to use for the requests.
@@ -393,45 +395,54 @@ class PikPakApi:
             return []
         paths = path.split("/")
         paths = [p.strip() for p in paths if len(p) > 0]
-        path_ids = []
-        count = 0
+        # 构造不同级别的path表达式，尝试找到距离目标最近的那一层
+        multi_level_paths = ["/" + "/".join(paths[:i + 1]) for i in range(len(paths))]
+        path_ids = [self._path_id_cache[p] for p in multi_level_paths if p in self._path_id_cache]
+        # 判断缓存命中情况
+        hit_cnt = len(path_ids)
+        if hit_cnt == len(paths):
+            return path_ids
+        elif hit_cnt == 0:
+            count = 0
+            parent_id = None
+        else:
+            count = hit_cnt
+            parent_id = path_ids[-1]["id"]
+
         next_page_token = None
-        parent_id = None
         while count < len(paths):
+            current_parent_path = "/" + "/".join(paths[:count])
             data = await self.file_list(
                 parent_id=parent_id, next_page_token=next_page_token
             )
-            id = ""
-            file_type = ""
+            record_of_target_path = None
             for f in data.get("files", []):
+                current_path = "/" + "/".join(paths[:count] + [f.get("name")])
+                file_type = "folder" if f.get("kind", "").find("folder") != -1 else "file"
+                record = {"id": f.get("id"), "name": f.get("name"), "file_type": file_type}
+                self._path_id_cache[current_path] = record
                 if f.get("name") == paths[count]:
-                    id = f.get("id")
-                    file_type = (
-                        "folder" if f.get("kind", "").find("folder") != -1 else "file"
-                    )
-                    break
-            if id:
-                path_ids.append(
-                    {
-                        "id": id,
-                        "name": paths[count],
-                        "file_type": file_type,
-                    }
-                )
+                    record_of_target_path = record
+                    # 不break: 剩下的文件也同样缓存起来
+            if record_of_target_path is not None:
+                path_ids.append(record_of_target_path)
                 count += 1
-                parent_id = id
+                parent_id = record_of_target_path["id"]
             elif data.get("next_page_token") and (not next_page_token or next_page_token != data.get("next_page_token")):
                 next_page_token = data.get("next_page_token")
             elif create:
                 data = await self.create_folder(name=paths[count], parent_id=parent_id)
                 id = data.get("file").get("id")
-                path_ids.append(
+                record = (
                     {
                         "id": id,
                         "name": paths[count],
                         "file_type": "folder",
                     }
                 )
+                path_ids.append(record)
+                current_path = "/" + "/".join(paths[:count+1])
+                self._path_id_cache[current_path] = record
                 count += 1
                 parent_id = id
             else:
