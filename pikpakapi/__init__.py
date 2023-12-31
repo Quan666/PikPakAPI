@@ -1,8 +1,11 @@
-from typing import Any, Dict, List, Optional
 import json
+from base64 import b64decode, b64encode
+from typing import Any, Dict, List, Optional
+
 import httpx
-from .enums import DownloadStatus
+
 from .PikpakException import PikpakException, PikpakAccessTokenExpireException
+from .enums import DownloadStatus
 
 
 class PikPakApi:
@@ -30,7 +33,13 @@ class PikPakApi:
     CLIENT_ID = "YNxT9w7GMdWvEOKa"
     CLIENT_SECRET = "dbw2OtmVEeuUvIptb1Coygx"
 
-    def __init__(self, username: str, password: str, proxy: Optional[str] = None):
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        proxy: Optional[str] = None,
+        encoded_token: Optional[str] = None,
+    ):
         """
         username: str - username of the user
         password: str - password of the user
@@ -39,6 +48,7 @@ class PikPakApi:
 
         self.username = username
         self.password = password
+        self.encoded_token = encoded_token
 
         self.access_token = None
         self.refresh_token = None
@@ -54,6 +64,13 @@ class PikPakApi:
         self.user_id = None
 
         self._path_id_cache = {}
+
+        if self.encoded_token:
+            self.decode_token()
+        elif self.username and self.password:
+            self.login()
+        else:
+            raise PikpakException("username and password or encoded_token is required")
 
     def get_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
         """
@@ -71,24 +88,37 @@ class PikPakApi:
 
         return headers
 
+    async def _make_request(
+        self, method: str, url: str, data=None, params=None, headers=None, proxies=None
+    ) -> Dict[str, Any]:
+        async with httpx.AsyncClient(proxies=proxies) as client:
+            response = await client.request(
+                method, url, json=data, params=params, headers=headers
+            )
+            json_data = response.json()
+
+            if "error" in json_data and json_data["error_code"] == 16:
+                await self.refresh_access_token()
+                headers = self.get_headers(self.access_token)
+                return await self._make_request(
+                    method, url, data, params, headers, proxies
+                )
+
+            if "error" in json_data:
+                raise PikpakException(f"{json_data['error_description']}")
+
+            return json_data
+
     async def _request_get(
         self,
         url: str,
         params: dict = None,
         headers: dict = None,
         proxies: httpx.Proxy = None,
-    ) -> Dict[str, Any]:
-        async with httpx.AsyncClient(proxies=proxies) as client:
-            response = await client.get(url, params=params, headers=headers)
-
-            json_data = response.json()
-            if "error" in json_data:
-                if json_data["error_code"] == 16:
-                    raise PikpakAccessTokenExpireException(
-                        json_data["error_description"]
-                    )
-                raise PikpakException(f"{json_data['error_description']}")
-            return json_data
+    ):
+        return await self._make_request(
+            "get", url, params=params, headers=headers, proxies=proxies
+        )
 
     async def _request_post(
         self,
@@ -96,17 +126,10 @@ class PikPakApi:
         data: dict = None,
         headers: dict = None,
         proxies: httpx.Proxy = None,
-    ) -> Dict[str, Any]:
-        async with httpx.AsyncClient(proxies=proxies) as client:
-            response = await client.post(url, json=data, headers=headers)
-            json_data = response.json()
-            if "error" in json_data:
-                if json_data["error_code"] == 16:
-                    raise PikpakAccessTokenExpireException(
-                        json_data["error_description"]
-                    )
-                raise PikpakException(f"{json_data['error_description']}")
-            return json_data
+    ):
+        return await self._make_request(
+            "post", url, data=data, headers=headers, proxies=proxies
+        )
 
     async def _request_patch(
         self,
@@ -114,18 +137,24 @@ class PikPakApi:
         data: dict = None,
         headers: dict = None,
         proxies: httpx.Proxy = None,
-    ) -> Dict[str, Any]:
-        async with httpx.AsyncClient(proxies=proxies) as client:
-            response = await client.patch(url, json=data, headers=headers)
-            json_data = response.json()
-            if "error" in json_data:
-                print(json_data)
-                if json_data["error_code"] == 16:
-                    raise PikpakAccessTokenExpireException(
-                        json_data["error_description"]
-                    )
-                raise PikpakException(f"{json_data['error_description']}")
-            return json_data
+    ):
+        return await self._make_request(
+            "patch", url, data=data, headers=headers, proxies=proxies
+        )
+
+    def decode_token(self):
+        """Decodes the encoded token to update access and refresh tokens."""
+        decoded_data = json.loads(b64decode(self.encoded_token).decode())
+        self.access_token = decoded_data.get("access_token")
+        self.refresh_token = decoded_data.get("refresh_token")
+
+    def encode_token(self):
+        """Encodes the access and refresh tokens into a single string."""
+        token_data = {
+            "access_token": self.access_token,
+            "refresh_token": self.refresh_token,
+        }
+        self.encoded_token = b64encode(json.dumps(token_data).encode()).decode()
 
     async def login(self) -> None:
         """
@@ -144,6 +173,7 @@ class PikPakApi:
         self.access_token = user_info["access_token"]
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
+        self.encode_token()
 
     async def refresh_access_token(self) -> None:
         """
@@ -171,6 +201,7 @@ class PikPakApi:
             "user_id": self.user_id,
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
+            "encoded_token": self.encoded_token,
         }
 
     async def create_folder(
@@ -303,7 +334,10 @@ class PikPakApi:
 
         获取文件列表，可以获得文件下载链接
         """
-        default_filters = {"trashed":{"eq":False},"phase":{"eq":"PHASE_TYPE_COMPLETE"}}
+        default_filters = {
+            "trashed": {"eq": False},
+            "phase": {"eq": "PHASE_TYPE_COMPLETE"},
+        }
         if additional_filters:
             default_filters.update(additional_filters)
         list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
@@ -313,7 +347,7 @@ class PikPakApi:
             "limit": size,
             "with_audit": "true",
             "page_token": next_page_token,
-            "filters": json.dumps(default_filters)
+            "filters": json.dumps(default_filters),
         }
         result = await self._request_get(
             list_url, list_data, self.get_headers(), self.proxy
@@ -358,7 +392,7 @@ class PikPakApi:
             )
             return result
         except Exception as e:
-            raise PikpakException(f"重试离线下载任务失败: {task_id}")
+            raise PikpakException(f"重试离线下载任务失败: {task_id}. {e}")
 
     async def get_task_status(self, task_id: str, file_id: str) -> DownloadStatus:
         """
@@ -378,10 +412,10 @@ class PikPakApi:
                 return DownloadStatus.done
             else:
                 return DownloadStatus.not_found
-        except PikpakAccessTokenExpireException as e:
+        except PikpakAccessTokenExpireException:
             await self.login()
             return await self.get_task_status(task_id, file_id)
-        except PikpakException as e:
+        except PikpakException:
             return DownloadStatus.error
 
     async def path_to_id(self, path: str, create: bool = False) -> List[Dict[str, str]]:
@@ -396,8 +430,12 @@ class PikPakApi:
         paths = path.split("/")
         paths = [p.strip() for p in paths if len(p) > 0]
         # 构造不同级别的path表达式，尝试找到距离目标最近的那一层
-        multi_level_paths = ["/" + "/".join(paths[:i + 1]) for i in range(len(paths))]
-        path_ids = [self._path_id_cache[p] for p in multi_level_paths if p in self._path_id_cache]
+        multi_level_paths = ["/" + "/".join(paths[: i + 1]) for i in range(len(paths))]
+        path_ids = [
+            self._path_id_cache[p]
+            for p in multi_level_paths
+            if p in self._path_id_cache
+        ]
         # 判断缓存命中情况
         hit_cnt = len(path_ids)
         if hit_cnt == len(paths):
@@ -418,8 +456,14 @@ class PikPakApi:
             record_of_target_path = None
             for f in data.get("files", []):
                 current_path = "/" + "/".join(paths[:count] + [f.get("name")])
-                file_type = "folder" if f.get("kind", "").find("folder") != -1 else "file"
-                record = {"id": f.get("id"), "name": f.get("name"), "file_type": file_type}
+                file_type = (
+                    "folder" if f.get("kind", "").find("folder") != -1 else "file"
+                )
+                record = {
+                    "id": f.get("id"),
+                    "name": f.get("name"),
+                    "file_type": file_type,
+                }
                 self._path_id_cache[current_path] = record
                 if f.get("name") == paths[count]:
                     record_of_target_path = record
@@ -428,20 +472,20 @@ class PikPakApi:
                 path_ids.append(record_of_target_path)
                 count += 1
                 parent_id = record_of_target_path["id"]
-            elif data.get("next_page_token") and (not next_page_token or next_page_token != data.get("next_page_token")):
+            elif data.get("next_page_token") and (
+                not next_page_token or next_page_token != data.get("next_page_token")
+            ):
                 next_page_token = data.get("next_page_token")
             elif create:
                 data = await self.create_folder(name=paths[count], parent_id=parent_id)
                 id = data.get("file").get("id")
-                record = (
-                    {
-                        "id": id,
-                        "name": paths[count],
-                        "file_type": "folder",
-                    }
-                )
+                record = {
+                    "id": id,
+                    "name": paths[count],
+                    "file_type": "folder",
+                }
                 path_ids.append(record)
-                current_path = "/" + "/".join(paths[:count+1])
+                current_path = "/" + "/".join(paths[: count + 1])
                 self._path_id_cache[current_path] = record
                 count += 1
                 parent_id = id
@@ -573,7 +617,10 @@ class PikPakApi:
         )
         return result
 
-    async def file_batch_star(self, ids: List[str],) -> Dict[str, Any]:
+    async def file_batch_star(
+        self,
+        ids: List[str],
+    ) -> Dict[str, Any]:
         """
         ids: List[str] - 文件id列表
 
@@ -590,7 +637,10 @@ class PikPakApi:
         )
         return result
 
-    async def file_batch_unstar(self, ids: List[str],) -> Dict[str, Any]:
+    async def file_batch_unstar(
+        self,
+        ids: List[str],
+    ) -> Dict[str, Any]:
         """
         ids: List[str] - 文件id列表
 
@@ -619,17 +669,20 @@ class PikPakApi:
         获取加星标的文件列表，可以获得文件下载链接
         parent_id只可取默认值*，子目录列表通过获取星标目录以后自行使用file_list方法获取
         """
-        additional_filters = {"system_tag":{"in":"STAR"}}
-        result = await self.file_list(size=size,
-                                      parent_id="*",
-                                      next_page_token=next_page_token,
-                                      additional_filters=additional_filters
-                                      )
+        additional_filters = {"system_tag": {"in": "STAR"}}
+        result = await self.file_list(
+            size=size,
+            parent_id="*",
+            next_page_token=next_page_token,
+            additional_filters=additional_filters,
+        )
         return result
 
-    async def file_batch_share(self, ids: List[str],
-                               need_password: Optional[bool] = False,
-                               expiration_days: Optional[int] = -1,
+    async def file_batch_share(
+        self,
+        ids: List[str],
+        need_password: Optional[bool] = False,
+        expiration_days: Optional[int] = -1,
     ) -> Dict[str, Any]:
         """
         ids: List[str] - 文件id列表
@@ -650,7 +703,7 @@ class PikPakApi:
             "file_ids": ids,
             "share_to": "encryptedlink" if need_password else "publiclink",
             "expiration_days": expiration_days,
-            "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED"
+            "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED",
         }
         result = await self._request_post(
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share",
