@@ -1,3 +1,4 @@
+import binascii
 import json
 from base64 import b64decode, b64encode
 from typing import Any, Dict, List, Optional
@@ -145,7 +146,14 @@ class PikPakApi:
 
     def decode_token(self):
         """Decodes the encoded token to update access and refresh tokens."""
-        decoded_data = json.loads(b64decode(self.encoded_token).decode())
+        try:
+            decoded_data = json.loads(b64decode(self.encoded_token).decode())
+        except (binascii.Error, json.JSONDecodeError):
+            raise PikpakException("Invalid encoded token")
+        if not decoded_data.get("access_token") or not decoded_data.get(
+            "refresh_token"
+        ):
+            raise PikpakException("Invalid encoded token")
         self.access_token = decoded_data.get("access_token")
         self.refresh_token = decoded_data.get("refresh_token")
 
