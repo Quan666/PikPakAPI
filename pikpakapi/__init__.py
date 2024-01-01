@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .PikpakException import PikpakException, PikpakAccessTokenExpireException
+from .PikpakException import PikpakException
 from .enums import DownloadStatus
 
 
@@ -68,7 +68,7 @@ class PikPakApi:
         if self.encoded_token:
             self.decode_token()
         elif self.username and self.password:
-            self.login()
+            pass
         else:
             raise PikpakException("username and password or encoded_token is required")
 
@@ -412,9 +412,6 @@ class PikPakApi:
                 return DownloadStatus.done
             else:
                 return DownloadStatus.not_found
-        except PikpakAccessTokenExpireException:
-            await self.login()
-            return await self.get_task_status(task_id, file_id)
         except PikpakException:
             return DownloadStatus.error
 
