@@ -20,6 +20,7 @@ class PikPakApi:
 
         username: str - username of the user
         password: str - password of the user
+        encoded_token: str - encoded token of the user with access and refresh token
         access_token: str - access token of the user , expire in 7200
         refresh_token: str - refresh token of the user
         proxy: str - proxy to use, e.g. "localhost:1080"
