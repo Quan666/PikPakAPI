@@ -200,6 +200,7 @@ class PikPakApi:
         self.access_token = user_info["access_token"]
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
+        self.encode_token()
 
     def get_user_info(self) -> Dict[str, Optional[str]]:
         """
