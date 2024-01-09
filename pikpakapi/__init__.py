@@ -40,7 +40,7 @@ class PikPakApi:
         username: Optional[str] = None,
         password: Optional[str] = None,
         encoded_token: Optional[str] = None,
-        httpx_client_args: Optional[Dict[str, Any]] = None,
+        httpx_client_args: Optional[Dict[str, Any]] = {},
     ):
         """
         username: str - username of the user
