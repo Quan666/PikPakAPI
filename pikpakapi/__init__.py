@@ -729,4 +729,4 @@ class PikPakApi:
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
         )
-        return result
+        return result['code']
