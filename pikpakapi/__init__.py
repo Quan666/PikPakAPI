@@ -378,7 +378,7 @@ class PikPakApi:
             "id": task_id,
         }
         try:
-            result = await self._request_get(list_url, list_data)
+            result = await self._request_post(list_url, list_data)
             return result
         except Exception as e:
             raise PikpakException(f"重试离线下载任务失败: {task_id}. {e}")
