@@ -299,6 +299,7 @@ class PikPakApi:
             "limit": size,
             "next_page_token": next_page_token,
             "filters": json.dumps({"phase": {"in": ",".join(phase)}}),
+            "with": "reference_resource"
         }
         result = await self._request_get(list_url, list_data)
         return result
