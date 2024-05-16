@@ -724,3 +724,9 @@ class PikPakApi:
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/about",
         )
         return result
+
+    async def get_invite_code(self):
+        result = await self._request_get(
+            url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
+        )
+        return result
