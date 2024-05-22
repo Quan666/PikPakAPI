@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from .utils import device_id_generator
+
 from .PikpakException import PikpakException
 from .enums import DownloadStatus
 
@@ -41,6 +43,7 @@ class PikPakApi:
         password: Optional[str] = None,
         encoded_token: Optional[str] = None,
         httpx_client_args: Optional[Dict[str, Any]] = {},
+        device_id: Optional[str] = None,
     ):
         """
         username: str - username of the user
@@ -56,6 +59,10 @@ class PikPakApi:
         self.access_token = None
         self.refresh_token = None
         self.user_id = None
+
+        # device_id is used to identify the device, if not provided, a random device_id will be generated, 32 characters
+        self.device_id = device_id if device_id else device_id_generator()
+        self.captcha_token = None
 
         self.httpx_client_args = httpx_client_args
 
@@ -81,6 +88,11 @@ class PikPakApi:
             headers["Authorization"] = f"Bearer {self.access_token}"
         if access_token:
             headers["Authorization"] = f"Bearer {access_token}"
+
+        if self.captcha_token:
+            headers["X-Captcha-Token"] = self.captcha_token
+        if self.device_id:
+            headers["X-Device-Id"] = self.device_id
 
         return headers
 
@@ -152,10 +164,25 @@ class PikPakApi:
         }
         self.encoded_token = b64encode(json.dumps(token_data).encode()).decode()
 
+    async def captcha_init(self) -> None:
+        url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/shield/captcha/init"
+        params = {
+            "client_id": "YUMx5nI8ZU8Ap8pm",
+            "action": "POST:/v1/auth/signin",
+            "device_id": self.device_id,
+            "meta": {"email": self.username},
+        }
+        return await self._request_post(url, data=params)
+
     async def login(self) -> None:
         """
         Login to PikPak
         """
+        captcha_token = (await self.captcha_init()).get("captcha_token")
+        if not captcha_token:
+            raise PikpakException("Get captcha token failed, please try again.")
+        self.captcha_token = captcha_token
+
         login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/signin"
         login_data = {
             "client_id": self.CLIENT_ID,
@@ -168,6 +195,9 @@ class PikPakApi:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
         self.encode_token()
+
+        # 清除, 暂时只用于登录
+        self.captcha_token = None
 
     async def refresh_access_token(self) -> None:
         """
@@ -299,7 +329,7 @@ class PikPakApi:
             "limit": size,
             "next_page_token": next_page_token,
             "filters": json.dumps({"phase": {"in": ",".join(phase)}}),
-            "with": "reference_resource"
+            "with": "reference_resource",
         }
         result = await self._request_get(list_url, list_data)
         return result
@@ -729,4 +759,4 @@ class PikPakApi:
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
         )
-        return result['code']
+        return result["code"]

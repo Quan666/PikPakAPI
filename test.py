@@ -16,6 +16,7 @@ async def test():
         },
     )
     await client.login()
+    await client.refresh_access_token()
     print(json.dumps(client.get_user_info(), indent=4))
     print("=" * 30, end="\n\n")
 
