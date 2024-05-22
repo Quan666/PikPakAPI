@@ -180,9 +180,13 @@ class PikPakApi:
         """
         data = await self.captcha_init()
         if data.get("url"):
-            print(f"Please solve the captcha in the browser: \n{data.get('url')}&redirect_uri=https%3A%2F%2Fmypikpak.com%2Floading&state=getcaptcha{get_timestamp()}")
+            print(
+                f"Please solve the captcha in the browser: \n{data.get('url')}&redirect_uri=https%3A%2F%2Fmypikpak.com%2Floading&state=getcaptcha{get_timestamp()}"
+            )
             # 要求通过验证码后地址栏中的 captcha_token
-            captcha_token = input("Input the captcha_token (from the browser address bar, it's after captcha_token=): \n")
+            captcha_token = input(
+                "Input the captcha_token (from the browser address bar, it's after captcha_token=): \n"
+            )
             if not captcha_token:
                 raise PikpakException("captcha_token is required")
             self.captcha_token = captcha_token
