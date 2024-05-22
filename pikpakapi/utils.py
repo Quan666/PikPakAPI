@@ -2,7 +2,13 @@ import hashlib
 import re
 import urllib.parse
 from uuid import uuid4
+import time
 
+def get_timestamp() -> int:
+    """
+    Get current timestamp.
+    """
+    return int(time.time() * 1000)
 
 def device_id_generator() -> str:
     """
