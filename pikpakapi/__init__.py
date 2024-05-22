@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .utils import device_id_generator, get_timestamp
 
 from .PikpakException import PikpakException
 from .enums import DownloadStatus
@@ -43,7 +42,6 @@ class PikPakApi:
         password: Optional[str] = None,
         encoded_token: Optional[str] = None,
         httpx_client_args: Optional[Dict[str, Any]] = {},
-        device_id: Optional[str] = None,
     ):
         """
         username: str - username of the user
@@ -59,10 +57,6 @@ class PikPakApi:
         self.access_token = None
         self.refresh_token = None
         self.user_id = None
-
-        # device_id is used to identify the device, if not provided, a random device_id will be generated, 32 characters
-        self.device_id = device_id if device_id else device_id_generator()
-        self.captcha_token = None
 
         self.httpx_client_args = httpx_client_args
 
@@ -89,19 +83,18 @@ class PikPakApi:
         if access_token:
             headers["Authorization"] = f"Bearer {access_token}"
 
-        if self.captcha_token:
-            headers["X-Captcha-Token"] = self.captcha_token
-        if self.device_id:
-            headers["X-Device-Id"] = self.device_id
-
         return headers
 
     async def _make_request(
-        self, method: str, url: str, data=None, params=None
+        self, method: str, url: str, data=None, params=None, headers=None
     ) -> Dict[str, Any]:
         async with httpx.AsyncClient(**self.httpx_client_args) as client:
             response = await client.request(
-                method, url, json=data, params=params, headers=self.get_headers()
+                method,
+                url,
+                json=data,
+                params=params,
+                headers=self.get_headers() if not headers else headers,
             )
             json_data = response.json()
 
@@ -125,8 +118,9 @@ class PikPakApi:
         self,
         url: str,
         data: dict = None,
+        headers: dict = None,
     ):
-        return await self._make_request("post", url, data=data)
+        return await self._make_request("post", url, data=data, headers=headers)
 
     async def _request_patch(
         self,
@@ -178,39 +172,25 @@ class PikPakApi:
         """
         Login to PikPak
         """
-        data = await self.captcha_init()
-        if data.get("url"):
-            print(
-                f"Please solve the captcha in the browser: \n{data.get('url')}&redirect_uri=https%3A%2F%2Fmypikpak.com%2Floading&state=getcaptcha{get_timestamp()}"
-            )
-            # 要求通过验证码后地址栏中的 captcha_token
-            captcha_token = input(
-                "Input the captcha_token (from the browser address bar, it's after captcha_token=): \n"
-            )
-            if not captcha_token:
-                raise PikpakException("captcha_token is required")
-            self.captcha_token = captcha_token
-        else:
-            captcha_token = data.get("captcha_token")
-            if not captcha_token:
-                raise PikpakException("Get captcha token failed, please try again.")
-            self.captcha_token = captcha_token
-
-        login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/signin"
+        login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/token"
         login_data = {
             "client_id": self.CLIENT_ID,
             "client_secret": self.CLIENT_SECRET,
             "password": self.password,
             "username": self.username,
+            "grant_type": "password",
         }
-        user_info = await self._request_post(login_url, login_data)
+        user_info = await self._request_post(
+            login_url,
+            login_data,
+            {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+        )
         self.access_token = user_info["access_token"]
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
         self.encode_token()
-
-        # 清除, 暂时只用于登录
-        self.captcha_token = None
 
     async def refresh_access_token(self) -> None:
         """
