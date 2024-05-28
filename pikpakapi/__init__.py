@@ -615,7 +615,7 @@ class PikPakApi:
         2. Use `web_content_link` to download the file
         """
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}?_magic=2021&thumbnail_size=SIZE_LARGE",
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?_magic=2021&thumbnail_size=SIZE_LARGE",
         )
         return result
 
