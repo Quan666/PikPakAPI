@@ -754,7 +754,7 @@ class PikPakApi:
         )
         return result["code"]
     
-    async def vip_status(self):
+    async def vip_info(self):
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/vip/v1/vip/info",
         )
