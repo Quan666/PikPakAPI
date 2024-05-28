@@ -606,15 +606,16 @@ class PikPakApi:
             result = await self.file_batch_copy(ids=from_ids, to_parent_id=to_parent_id)
         return result
 
-    async def get_download_url(self, id: str) -> Dict[str, Any]:
+    async def get_download_url(self, file_id: str) -> Dict[str, Any]:
         """
         id: str - 文件id
 
-        获取文件的下载链接
-        返回结果中的 web_content_link 字段
+        Returns the file details data.
+        1. Use `medias[0][link][url]` for streaming with high speed in streaming services or tools.
+        2. Use `web_content_link` to download the file
         """
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}?usage=FETCH",
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?_magic=2021&thumbnail_size=SIZE_LARGE",
         )
         return result
 
