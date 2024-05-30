@@ -98,13 +98,15 @@ class PikPakApi:
             )
             json_data = response.json()
 
-            if "error" in json_data and json_data["error_code"] == 16:
-                await self.refresh_access_token()
-                return await self._make_request(method, url, data, params)
-
             if "error" in json_data:
-                raise PikpakException(f"{json_data['error_description']}")
-
+                if json_data.get["error_code"] == 16:
+                    await self.refresh_access_token()
+                    return await self._make_request(method, url, data, params)
+                else:
+                    while retry <= 3:
+                        retry += 1
+                        await self._make_request(method, url, data, params, headers, retry)
+                    raise PikpakException(f"{json_data['error_description']}")
             return json_data
 
     async def _request_get(
