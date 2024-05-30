@@ -99,7 +99,7 @@ class PikPakApi:
             json_data = response.json()
 
             if "error" in json_data:
-                if json_data.get["error_code"] == 16:
+                if json_data.get("error_code") == 16:
                     await self.refresh_access_token()
                     return await self._make_request(method, url, data, params)
                 else:
