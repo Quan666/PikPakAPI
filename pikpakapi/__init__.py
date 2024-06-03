@@ -759,6 +759,6 @@ class PikPakApi:
     
     async def vip_info(self):
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/vip/v1/vip/info",
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/privilege/vip",
         )
         return result
