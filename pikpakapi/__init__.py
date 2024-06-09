@@ -86,7 +86,7 @@ class PikPakApi:
         return headers
 
     async def _make_request(
-        self, method: str, url: str, data=None, params=None, headers=None
+        self, method: str, url: str, data=None, params=None, headers=None, retry=0 
     ) -> Dict[str, Any]:
         async with httpx.AsyncClient(**self.httpx_client_args) as client:
             response = await client.request(
