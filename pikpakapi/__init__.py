@@ -322,7 +322,7 @@ class PikPakApi:
             "type": "offline",
             "thumbnail_size": "SIZE_SMALL",
             "limit": size,
-            "next_page_token": next_page_token,
+            "page_token": next_page_token,
             "filters": json.dumps({"phase": {"in": ",".join(phase)}}),
             "with": "reference_resource",
         }
