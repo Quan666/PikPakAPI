@@ -762,3 +762,11 @@ class PikPakApi:
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/privilege/vip",
         )
         return result
+
+    async def get_transfer_quota(self) -> Dict[str, Any]:
+        """
+        Get transfer quota
+        """
+        url = f"https://{self.PIKPAK_API_HOST}/vip/v1/quantity/list?type=transfer"
+        result = await self._request_get(url)
+        return result
