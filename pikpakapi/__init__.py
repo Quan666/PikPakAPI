@@ -1,8 +1,17 @@
 import binascii
+from hashlib import md5
 import json
 from base64 import b64decode, b64encode
 from typing import Any, Dict, List, Optional
-
+from .utils import (
+    CLIENT_ID,
+    CLIENT_SECRET,
+    CLIENT_VERSION,
+    PACKAG_ENAME,
+    build_custom_user_agent,
+    captcha_sign,
+    get_timestamp,
+)
 import httpx
 
 
@@ -33,15 +42,13 @@ class PikPakApi:
     PIKPAK_API_HOST = "api-drive.mypikpak.com"
     PIKPAK_USER_HOST = "user.mypikpak.com"
 
-    CLIENT_ID = "YNxT9w7GMdWvEOKa"
-    CLIENT_SECRET = "dbw2OtmVEeuUvIptb1Coygx"
-
     def __init__(
         self,
         username: Optional[str] = None,
         password: Optional[str] = None,
         encoded_token: Optional[str] = None,
         httpx_client_args: Optional[Dict[str, Any]] = {},
+        device_id: Optional[str] = None,
     ):
         """
         username: str - username of the user
@@ -58,9 +65,19 @@ class PikPakApi:
         self.refresh_token = None
         self.user_id = None
 
+        # device_id is used to identify the device, if not provided, a random device_id will be generated, 32 characters
+        self.device_id = (
+            device_id
+            if device_id
+            else md5(f"{self.username}{self.password}".encode()).hexdigest()
+        )
+        self.captcha_token = None
+
         self.httpx_client_args = httpx_client_args
 
         self._path_id_cache = {}
+
+        self.user_agent: Optional[str] = None
 
         if self.encoded_token:
             self.decode_token()
@@ -69,12 +86,20 @@ class PikPakApi:
         else:
             raise PikpakException("username and password or encoded_token is required")
 
+    def build_custom_user_agent(self) -> str:
+
+        self.user_agent = build_custom_user_agent(
+            device_id=self.device_id,
+            user_id=self.user_id if self.user_id else "",
+        )
+        return self.user_agent
+
     def get_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
         """
         Returns the headers to use for the requests.
         """
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36",
+            "User-Agent": self.build_custom_user_agent(),
             "Content-Type": "application/json; charset=utf-8",
         }
 
@@ -82,11 +107,14 @@ class PikPakApi:
             headers["Authorization"] = f"Bearer {self.access_token}"
         if access_token:
             headers["Authorization"] = f"Bearer {access_token}"
-
+        if self.captcha_token:
+            headers["X-Captcha-Token"] = self.captcha_token
+        if self.device_id:
+            headers["X-Device-Id"] = self.device_id
         return headers
 
     async def _make_request(
-        self, method: str, url: str, data=None, params=None, headers=None, retry=0 
+        self, method: str, url: str, data=None, params=None, headers=None, retry=0
     ) -> Dict[str, Any]:
         async with httpx.AsyncClient(**self.httpx_client_args) as client:
             response = await client.request(
@@ -105,7 +133,9 @@ class PikPakApi:
                 else:
                     while retry <= 3:
                         retry += 1
-                        await self._make_request(method, url, data, params, headers, retry)
+                        await self._make_request(
+                            method, url, data, params, headers, retry
+                        )
                     raise PikpakException(f"{json_data['error_description']}")
             return json_data
 
@@ -160,13 +190,22 @@ class PikPakApi:
         }
         self.encoded_token = b64encode(json.dumps(token_data).encode()).decode()
 
-    async def captcha_init(self) -> None:
+    async def captcha_init(self, action: str, meta: dict = None) -> Dict[str, Any]:
         url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/shield/captcha/init"
+        if not meta:
+            t = f"{get_timestamp()}"
+            meta = {
+                "captcha_sign": captcha_sign(self.device_id, t),
+                "client_version": CLIENT_VERSION,
+                "package_name": PACKAG_ENAME,
+                "user_id": self.user_id,
+                "timestamp": t,
+            }
         params = {
-            "client_id": "YUMx5nI8ZU8Ap8pm",
-            "action": "POST:/v1/auth/signin",
+            "client_id": CLIENT_ID,
+            "action": action,
             "device_id": self.device_id,
-            "meta": {"email": self.username},
+            "meta": meta,
         }
         return await self._request_post(url, data=params)
 
@@ -176,8 +215,8 @@ class PikPakApi:
         """
         login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/token"
         login_data = {
-            "client_id": self.CLIENT_ID,
-            "client_secret": self.CLIENT_SECRET,
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "password": self.password,
             "username": self.username,
             "grant_type": "password",
@@ -200,7 +239,7 @@ class PikPakApi:
         """
         refresh_url = f"https://{self.PIKPAK_USER_HOST}/v1/auth/token"
         refresh_data = {
-            "client_id": self.CLIENT_ID,
+            "client_id": CLIENT_ID,
             "refresh_token": self.refresh_token,
             "grant_type": "refresh_token",
         }
@@ -616,9 +655,14 @@ class PikPakApi:
         1. Use `medias[0][link][url]` for streaming with high speed in streaming services or tools.
         2. Use `web_content_link` to download the file
         """
-        result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?_magic=2021&thumbnail_size=SIZE_LARGE",
+        result = await self.captcha_init(
+            action=f"GET:/drive/v1/files/{file_id}",
         )
+        self.captcha_token = result.get("captcha_token")
+        result = await self._request_get(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?",
+        )
+
         return result
 
     async def file_rename(self, id: str, new_file_name: str) -> Dict[str, Any]:
@@ -756,7 +800,7 @@ class PikPakApi:
             url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
         )
         return result["code"]
-    
+
     async def vip_info(self):
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/privilege/vip",
