@@ -152,11 +152,11 @@ class PikPakApi:
                 continue
 
             json_data = response.json()
-            if "error" not in json_data:
+            if json_data and "error" not in json_data:
                 # ok
                 return json_data
 
-            if len(json_data) == 0:
+            if not json_data:
                 error_decription = "empty json data"
                 await asyncio.sleep(backoff_seconds)
                 backoff_seconds *= 2  # exponential backoff
