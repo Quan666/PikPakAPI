@@ -99,7 +99,11 @@ class PikPakApi:
         Returns the headers to use for the requests.
         """
         headers = {
-            "User-Agent": self.build_custom_user_agent(),
+            "User-Agent": (
+                self.build_custom_user_agent()
+                if self.captcha_token
+                else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            ),
             "Content-Type": "application/json; charset=utf-8",
         }
 
@@ -662,7 +666,7 @@ class PikPakApi:
         result = await self._request_get(
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?",
         )
-
+        self.captcha_token = None
         return result
 
     async def file_rename(self, id: str, new_file_name: str) -> Dict[str, Any]:
