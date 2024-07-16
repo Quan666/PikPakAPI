@@ -1,6 +1,8 @@
 import binascii
 from hashlib import md5
 import json
+import logging
+import asyncio
 from base64 import b64decode, b64encode
 from typing import Any, Dict, List, Optional
 from .utils import (
@@ -73,7 +75,7 @@ class PikPakApi:
         )
         self.captcha_token = None
 
-        self.httpx_client_args = httpx_client_args
+        self.httpx_client = httpx.AsyncClient(**httpx_client_args)
 
         self._path_id_cache = {}
 
@@ -118,30 +120,57 @@ class PikPakApi:
         return headers
 
     async def _make_request(
-        self, method: str, url: str, data=None, params=None, headers=None, retry=0
+        self, method: str, url: str, data=None, params=None, headers=None
     ) -> Dict[str, Any]:
-        async with httpx.AsyncClient(**self.httpx_client_args) as client:
-            response = await client.request(
-                method,
-                url,
-                json=data,
-                params=params,
-                headers=self.get_headers() if not headers else headers,
-            )
-            json_data = response.json()
+        backoff_seconds = 3
+        error_decription = ""
+        for i in range(3):  # retries
+            # headers can be different for each request with captcha
+            if headers is None:
+                req_headers = self.get_headers()
+            else:
+                req_headers = headers
+            try:
+                response = await self.httpx_client.request(
+                    method,
+                    url,
+                    json=data,
+                    params=params,
+                    headers=req_headers,
+                )
+            except httpx.HTTPError as e:
+                logging.error(e)
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds *= 2  # exponential backoff
+                continue
+            except KeyboardInterrupt as e:
+                sys.exit(0)
+            except Exception as e:
+                logging.error(e)
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds *= 2  # exponential backoff
+                continue
 
-            if "error" in json_data:
-                if json_data.get("error_code") == 16:
-                    await self.refresh_access_token()
-                    return await self._make_request(method, url, data, params)
-                else:
-                    while retry <= 3:
-                        retry += 1
-                        await self._make_request(
-                            method, url, data, params, headers, retry
-                        )
-                    raise PikpakException(f"{json_data['error_description']}")
-            return json_data
+            json_data = response.json()
+            if json_data and "error" not in json_data:
+                # ok
+                return json_data
+
+            if not json_data:
+                error_decription = "empty json data"
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds *= 2  # exponential backoff
+                continue
+            elif json_data["error_code"] == 16:
+                await self.refresh_access_token()
+                continue
+                # goes to next iteration in retry loop
+            else:
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds *= 2  # exponential backoff
+                continue
+
+        raise PikpakException(error_decription)
 
     async def _request_get(
         self,
