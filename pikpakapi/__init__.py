@@ -4,6 +4,8 @@ import json
 import logging
 import asyncio
 from base64 import b64decode, b64encode
+import sys
+import re
 from typing import Any, Dict, List, Optional
 from .utils import (
     CLIENT_ID,
@@ -75,9 +77,11 @@ class PikPakApi:
         )
         self.captcha_token = None
 
-        self.httpx_client = httpx.AsyncClient(**httpx_client_args)
+        self.httpx_client = httpx.AsyncClient(
+            **httpx_client_args if httpx_client_args else {}
+        )
 
-        self._path_id_cache = {}
+        self._path_id_cache: Dict[str, Any] = {}
 
         self.user_agent: Optional[str] = None
 
@@ -246,13 +250,29 @@ class PikPakApi:
         """
         Login to PikPak
         """
-        login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/token"
+        login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/signin"
+        metas = {}
+        if not self.username or not self.password:
+            raise PikpakException("username and password are required")
+        if re.match(r"\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*", self.username):
+            metas["email"] = self.username
+        elif re.match(r"\d{11,18}", self.username):
+            metas["phone_number"] = self.username
+        else:
+            metas["username"] = self.username
+        result = await self.captcha_init(
+            action=f"POST:{login_url}",
+            meta=metas,
+        )
+        captcha_token = result.get("captcha_token", "")
+        if not captcha_token:
+            raise PikpakException("captcha_token get failed")
         login_data = {
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
             "password": self.password,
             "username": self.username,
-            "grant_type": "password",
+            "captcha_token": captcha_token,
         }
         user_info = await self._request_post(
             login_url,

@@ -4,7 +4,7 @@ import time
 
 CLIENT_ID = "YNxT9w7GMdWvEOKa"
 CLIENT_SECRET = "dbw2OtmVEeuUvIptb1Coyg"
-CLIENT_VERSION = "1.46.2"
+CLIENT_VERSION = "1.47.1"
 PACKAG_ENAME = "com.pikcloud.pikpak"
 SDK_VERSION = "2.0.4.204000 "
 APP_NAME = PACKAG_ENAME
@@ -25,15 +25,21 @@ def device_id_generator() -> str:
 
 
 SALTS = [
-    "PAe56I7WZ6FCSkFy77A96jHWcQA27ui80Qy4",
-    "SUbmk67TfdToBAEe2cZyP8vYVeN",
-    "1y3yFSZVWiGN95fw/2FQlRuH/Oy6WnO",
-    "8amLtHJpGzHPz4m9hGz7r+i+8dqQiAk",
-    "tmIEq5yl2g/XWwM3sKZkY4SbL8YUezrvxPksNabUJ",
-    "4QvudeJwgJuSf/qb9/wjC21L5aib",
-    "D1RJd+FZ+LBbt+dAmaIyYrT9gxJm0BB",
-    "1If",
-    "iGZr/SJPUFRkwvC174eelKy",
+    "Gez0T9ijiI9WCeTsKSg3SMlx",
+	"zQdbalsolyb1R/",
+	"ftOjr52zt51JD68C3s",
+	"yeOBMH0JkbQdEFNNwQ0RI9T3wU/v",
+	"BRJrQZiTQ65WtMvwO",
+	"je8fqxKPdQVJiy1DM6Bc9Nb1",
+	"niV",
+	"9hFCW2R1",
+	"sHKHpe2i96",
+	"p7c5E6AcXQ/IJUuAEC9W6",
+	"",
+	"aRv9hjc9P+Pbn+u3krN6",
+	"BzStcgE8qVdqjEH16l4",
+	"SqgeZvL5j9zoHP95xWHt",
+	"zVof5yaJkPe3VFpadPof",
 ]
 
 
