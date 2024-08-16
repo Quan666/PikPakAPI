@@ -154,8 +154,10 @@ class PikPakApi:
                 await asyncio.sleep(backoff_seconds)
                 backoff_seconds *= 2  # exponential backoff
                 continue
-
-            json_data = response.json()
+            try:
+                json_data = response.json()
+            except json.JSONDecodeError:
+                raise PikpakException(f"Invalid json response, status code: {response.status_code}, body: {response.text}")
             if json_data and "error" not in json_data:
                 # ok
                 return json_data
@@ -264,7 +266,15 @@ class PikPakApi:
             action=f"POST:{login_url}",
             meta=metas,
         )
-        captcha_token = result.get("captcha_token", "")
+        if result.get("url"):
+            print(
+                f"Please solve the captcha in the browser: \n{result.get('url')}&redirect_uri=https%3A%2F%2Fmypikpak.com%2Floading&state=getcaptcha{get_timestamp()}"
+            )
+            captcha_token = input(
+                "Input the captcha_token (from the browser address bar, it's after captcha_token=): \n"
+            )
+        else:
+            captcha_token = result.get("captcha_token", "")
         if not captcha_token:
             raise PikpakException("captcha_token get failed")
         login_data = {
