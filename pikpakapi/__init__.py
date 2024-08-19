@@ -174,6 +174,11 @@ class PikPakApi:
                 backoff_seconds *= 2  # exponential backoff
                 continue
 
+        if error_decription == "" and "error_description" in json_data.keys():
+            error_decription = json_data["error_description"]
+        else:
+            error_decription = "Unknown Error"
+
         raise PikpakException(error_decription)
 
     async def _request_get(
