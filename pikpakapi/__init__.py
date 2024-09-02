@@ -392,12 +392,10 @@ class PikPakApi:
     async def offline_list(
         self,
         size: int = 10000,
-        next_page_token: Optional[str] = None,
         phase: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
-        next_page_token: str - 下一页的page token
         phase: List[str] - Offline download task status, default is ["PHASE_TYPE_RUNNING", "PHASE_TYPE_ERROR"]
             supported values: PHASE_TYPE_RUNNING, PHASE_TYPE_ERROR, PHASE_TYPE_COMPLETE, PHASE_TYPE_PENDING
 
@@ -410,7 +408,6 @@ class PikPakApi:
             "type": "offline",
             "thumbnail_size": "SIZE_SMALL",
             "limit": size,
-            "page_token": next_page_token,
             "filters": json.dumps({"phase": {"in": ",".join(phase)}}),
             "with": "reference_resource",
         }
