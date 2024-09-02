@@ -11,7 +11,7 @@ keywords = ["pikpak", "api"]
 
 [tool.poetry.dependencies]
 python = "^3.8.3"
-httpx = ">=0.24.1"
+curl-cffi = "^0.7.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
