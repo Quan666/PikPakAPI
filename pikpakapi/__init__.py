@@ -80,6 +80,9 @@ class PikPakApi:
         self._path_id_cache: Dict[str, Any] = {}
 
         self.user_agent: Optional[str] = None
+        if sys.platform.startswith('win'):
+            # if Windows
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
         if self.encoded_token:
             self.decode_token()
