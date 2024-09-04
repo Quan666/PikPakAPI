@@ -16,7 +16,7 @@ from .utils import (
     captcha_sign,
     get_timestamp,
 )
-import httpx
+from curl_cffi.requests import AsyncSession
 
 
 from .PikpakException import PikpakException
@@ -28,8 +28,6 @@ class PikPakApi:
     PikPakApi class
 
     Attributes:
-        CLIENT_ID: str - PikPak API client id
-        CLIENT_SECRET: str - PikPak API client secret
         PIKPAK_API_HOST: str - PikPak API host
         PIKPAK_USER_HOST: str - PikPak user API host
 
@@ -39,7 +37,7 @@ class PikPakApi:
         access_token: str - access token of the user , expire in 7200
         refresh_token: str - refresh token of the user
         user_id: str - user id of the user
-        httpx_client_args: dict - extra arguments for httpx.AsyncClient (https://www.python-httpx.org/api/#asyncclient)
+        timeout - 超时时间
 
     """
 
@@ -51,8 +49,9 @@ class PikPakApi:
         username: Optional[str] = None,
         password: Optional[str] = None,
         encoded_token: Optional[str] = None,
-        httpx_client_args: Optional[Dict[str, Any]] = {},
         device_id: Optional[str] = None,
+        timeout: Optional[int] = 30,
+        proxies: Optional[dict] = None,
     ):
         """
         username: str - username of the user
@@ -77,13 +76,13 @@ class PikPakApi:
         )
         self.captcha_token = None
 
-        self.httpx_client = httpx.AsyncClient(
-            **httpx_client_args if httpx_client_args else {}
-        )
-
+        self.curl_client = AsyncSession(timeout=timeout, proxies=proxies)
         self._path_id_cache: Dict[str, Any] = {}
 
         self.user_agent: Optional[str] = None
+        if sys.platform.startswith('win'):
+            # if Windows
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
         if self.encoded_token:
             self.decode_token()
@@ -135,19 +134,40 @@ class PikPakApi:
             else:
                 req_headers = headers
             try:
-                response = await self.httpx_client.request(
-                    method,
-                    url,
-                    json=data,
-                    params=params,
-                    headers=req_headers,
-                )
-            except httpx.HTTPError as e:
-                logging.error(e)
-                await asyncio.sleep(backoff_seconds)
-                backoff_seconds *= 2  # exponential backoff
-                continue
-            except KeyboardInterrupt as e:
+                if method == "get":
+                    response = await self.curl_client.get(
+                        url,
+                        json=data,
+                        params=params,
+                        headers=req_headers,
+                    )
+                elif method == "post":
+                    response = await self.curl_client.post(
+                        url,
+                        json=data,
+                        params=params,
+                        headers=req_headers,
+                    )
+                elif method == "delete":
+                    response = await self.curl_client.delete(
+                        url,
+                        json=data,
+                        params=params,
+                        headers=req_headers
+                    )
+                elif method == "patch":
+                    response = await self.curl_client.patch(
+                        url,
+                        json=data,
+                        params=params,
+                        headers=req_headers)
+                pass
+            # except httpx.HTTPError as e:
+            #     logging.error(e)
+            #     await asyncio.sleep(backoff_seconds)
+            #     backoff_seconds *= 2  # exponential backoff
+            #     continue
+            except KeyboardInterrupt:
                 sys.exit(0)
             except Exception as e:
                 logging.error(e)
@@ -176,37 +196,12 @@ class PikPakApi:
                 backoff_seconds *= 2  # exponential backoff
                 continue
 
+        if error_decription == "" and "error_description" in json_data.keys():
+            error_decription = json_data["error_description"]
+        else:
+            error_decription = "Unknown Error"
+
         raise PikpakException(error_decription)
-
-    async def _request_get(
-        self,
-        url: str,
-        params: dict = None,
-    ):
-        return await self._make_request("get", url, params=params)
-
-    async def _request_post(
-        self,
-        url: str,
-        data: dict = None,
-        headers: dict = None,
-    ):
-        return await self._make_request("post", url, data=data, headers=headers)
-
-    async def _request_patch(
-        self,
-        url: str,
-        data: dict = None,
-    ):
-        return await self._make_request("patch", url, data=data)
-
-    async def _request_delete(
-        self,
-        url: str,
-        params: dict = None,
-        data: dict = None,
-    ):
-        return await self._make_request("delete", url, params=params, data=data)
 
     def decode_token(self):
         """Decodes the encoded token to update access and refresh tokens."""
@@ -246,7 +241,7 @@ class PikPakApi:
             "device_id": self.device_id,
             "meta": meta,
         }
-        return await self._request_post(url, data=params)
+        return await self._make_request(method="post", url=url, data=params)
 
     async def login(self) -> None:
         """
@@ -284,10 +279,11 @@ class PikPakApi:
             "username": self.username,
             "captcha_token": captcha_token,
         }
-        user_info = await self._request_post(
-            login_url,
-            login_data,
-            {
+        user_info = await self._make_request(
+            method="post",
+            url=login_url,
+            data=login_data,
+            headers={
                 "Content-Type": "application/x-www-form-urlencoded",
             },
         )
@@ -306,7 +302,7 @@ class PikPakApi:
             "refresh_token": self.refresh_token,
             "grant_type": "refresh_token",
         }
-        user_info = await self._request_post(refresh_url, refresh_data)
+        user_info = await self._make_request(method="post",url=refresh_url, data=refresh_data)
         self.access_token = user_info["access_token"]
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
@@ -339,7 +335,7 @@ class PikPakApi:
             "name": name,
             "parent_id": parent_id,
         }
-        result = await self._request_post(url, data)
+        result = await self._make_request(method="post",url=url, data=data)
         return result
 
     async def delete_to_trash(self, ids: List[str]) -> Dict[str, Any]:
@@ -352,7 +348,7 @@ class PikPakApi:
         data = {
             "ids": ids,
         }
-        result = await self._request_post(url, data)
+        result = await self._make_request(method="post",url=url, data=data)
         return result
 
     async def untrash(self, ids: List[str]) -> Dict[str, Any]:
@@ -365,7 +361,7 @@ class PikPakApi:
         data = {
             "ids": ids,
         }
-        result = await self._request_post(url, data)
+        result = await self._make_request(method="post", url=url, data=data)
         return result
 
     async def delete_forever(self, ids: List[str]) -> Dict[str, Any]:
@@ -378,7 +374,7 @@ class PikPakApi:
         data = {
             "ids": ids,
         }
-        result = await self._request_post(url, data)
+        result = await self._make_request(method="post",url=url, data=data)
         return result
 
     async def offline_download(
@@ -400,18 +396,16 @@ class PikPakApi:
             "folder_type": "DOWNLOAD" if not parent_id else "",
             "parent_id": parent_id,
         }
-        result = await self._request_post(download_url, download_data)
+        result = await self._make_request(method="post",url=download_url, data=download_data)
         return result
 
     async def offline_list(
         self,
         size: int = 10000,
-        next_page_token: Optional[str] = None,
         phase: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         size: int - 每次请求的数量
-        next_page_token: str - 下一页的page token
         phase: List[str] - Offline download task status, default is ["PHASE_TYPE_RUNNING", "PHASE_TYPE_ERROR"]
             supported values: PHASE_TYPE_RUNNING, PHASE_TYPE_ERROR, PHASE_TYPE_COMPLETE, PHASE_TYPE_PENDING
 
@@ -424,11 +418,10 @@ class PikPakApi:
             "type": "offline",
             "thumbnail_size": "SIZE_SMALL",
             "limit": size,
-            "page_token": next_page_token,
             "filters": json.dumps({"phase": {"in": ",".join(phase)}}),
             "with": "reference_resource",
         }
-        result = await self._request_get(list_url, list_data)
+        result = await self._make_request(method="get",url=list_url, params=list_data)
         return result
 
     async def offline_file_info(self, file_id: str) -> Dict[str, Any]:
@@ -438,7 +431,7 @@ class PikPakApi:
         离线下载文件信息
         """
         url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}"
-        result = await self._request_get(url, {"thumbnail_size": "SIZE_LARGE"})
+        result = await self._make_request(method="get",url=url, params={"thumbnail_size": "SIZE_LARGE"})
         return result
 
     async def file_list(
@@ -471,7 +464,7 @@ class PikPakApi:
             "page_token": next_page_token,
             "filters": json.dumps(default_filters),
         }
-        result = await self._request_get(list_url, list_data)
+        result = await self._make_request(method="get",url=list_url, params=list_data)
         return result
 
     async def events(
@@ -489,7 +482,7 @@ class PikPakApi:
             "limit": size,
             "next_page_token": next_page_token,
         }
-        result = await self._request_get(list_url, list_data)
+        result = await self._make_request(method="get",url=list_url, params=list_data)
         return result
 
     async def offline_task_retry(self, task_id: str) -> Dict[str, Any]:
@@ -505,7 +498,7 @@ class PikPakApi:
             "id": task_id,
         }
         try:
-            result = await self._request_post(list_url, list_data)
+            result = await self._make_request(method="post",url=list_url, data=list_data)
             return result
         except Exception as e:
             raise PikpakException(f"重试离线下载任务失败: {task_id}. {e}")
@@ -523,7 +516,7 @@ class PikPakApi:
             "delete_files": delete_files,
         }
         try:
-            await self._request_delete(delete_url, params=params)
+            await self._make_request(method="delete",url=delete_url, params=params)
         except Exception as e:
             raise PikpakException(f"Failing to delete tasks: {task_ids}. {e}")
 
@@ -641,7 +634,8 @@ class PikPakApi:
             if to_parent_id
             else {}
         )
-        result = await self._request_post(
+        result = await self._make_request(
+            method="post",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchMove",
             data={
                 "ids": ids,
@@ -668,7 +662,8 @@ class PikPakApi:
             if to_parent_id
             else {}
         )
-        result = await self._request_post(
+        result = await self._make_request(
+            method="post",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchCopy",
             data={
                 "ids": ids,
@@ -722,7 +717,7 @@ class PikPakApi:
             action=f"GET:/drive/v1/files/{file_id}",
         )
         self.captcha_token = result.get("captcha_token")
-        result = await self._request_get(
+        result = await self._make_request(method="get",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?",
         )
         self.captcha_token = None
@@ -739,7 +734,7 @@ class PikPakApi:
         data = {
             "name": new_file_name,
         }
-        result = await self._request_patch(
+        result = await self._make_request(method="patch",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}",
             data=data,
         )
@@ -757,7 +752,8 @@ class PikPakApi:
         data = {
             "ids": ids,
         }
-        result = await self._request_post(
+        result = await self._make_request(
+            method="post",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:star",
             data=data,
         )
@@ -775,7 +771,8 @@ class PikPakApi:
         data = {
             "ids": ids,
         }
-        result = await self._request_post(
+        result = await self._make_request(
+            method="post",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:unstar",
             data=data,
         )
@@ -829,7 +826,8 @@ class PikPakApi:
             "expiration_days": expiration_days,
             "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED",
         }
-        result = await self._request_post(
+        result = await self._make_request(
+            method="post",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share",
             data=data,
         )
@@ -853,19 +851,19 @@ class PikPakApi:
             "quotas": {}
         }
         """
-        result = await self._request_get(
+        result = await self._make_request(method="get",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/about",
         )
         return result
 
     async def get_invite_code(self):
-        result = await self._request_get(
+        result = await self._make_request(method="get",
             url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
         )
         return result["code"]
 
     async def vip_info(self):
-        result = await self._request_get(
+        result = await self._make_request(method="get",
             url=f"https://{self.PIKPAK_API_HOST}/drive/v1/privilege/vip",
         )
         return result
@@ -875,5 +873,5 @@ class PikPakApi:
         Get transfer quota
         """
         url = f"https://{self.PIKPAK_API_HOST}/vip/v1/quantity/list?type=transfer"
-        result = await self._request_get(url)
+        result = await self._make_request(method="get",url=url)
         return result

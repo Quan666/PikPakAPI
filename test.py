@@ -1,7 +1,6 @@
 import asyncio
 import json
 
-import httpx
 
 from pikpakapi import PikPakApi
 
@@ -10,10 +9,8 @@ async def test():
     client = PikPakApi(
         username="your_username",
         password="your_password",
-        httpx_client_args={
-            "proxy": "http://127.0.0.1:1081",
-            "transport": httpx.AsyncHTTPTransport(retries=3),
-        },
+        timeout=30,
+        proxies={"http": "socks5://127.0.0.1:1080"},
     )
     await client.login()
     await client.refresh_access_token()
