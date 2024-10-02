@@ -80,6 +80,20 @@ async def test():
     print(json.dumps(await client.get_quota_info(), indent=4))
     print("=" * 30, end="\n\n")
 
+    print(json.dumps(
+        await client.get_share_info("https://mypikpak.com/s/VO8BcRb-0fibD0Ncymp8nxSMo1"),
+        indent=4))
+
+    test_restore = json.dumps(
+        await client.get_share_info("https://mypikpak.com/s/VO8BcRb-0fibD0Ncymp8nxSMo1/VO8Ba45l-FRcCf559uZjwjFjo1"),
+        indent=4)
+
+    await client.restore(
+        share_id=json.loads(test_restore[0]).get("share_id"),
+        pass_code_token=json.loads(test_restore[0]).get("pass_code_token"),
+        file_ids=["VO8BcNTLpxHtBHDFH0d5cGRzo1",]
+    )
+
 
 if __name__ == "__main__":
     asyncio.run(test())
