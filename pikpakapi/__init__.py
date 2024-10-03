@@ -1,12 +1,17 @@
+import asyncio
 import binascii
-from hashlib import md5
 import json
 import logging
-import asyncio
-from base64 import b64decode, b64encode
-import sys
 import re
+import sys
+from base64 import b64decode, b64encode
+from hashlib import md5
 from typing import Any, Dict, List, Optional
+
+import httpx
+
+from .PikpakException import PikpakException
+from .enums import DownloadStatus
 from .utils import (
     CLIENT_ID,
     CLIENT_SECRET,
@@ -16,11 +21,6 @@ from .utils import (
     captcha_sign,
     get_timestamp,
 )
-import httpx
-
-
-from .PikpakException import PikpakException
-from .enums import DownloadStatus
 
 
 class PikPakApi:
@@ -872,3 +872,56 @@ class PikPakApi:
         url = f"https://{self.PIKPAK_API_HOST}/vip/v1/quantity/list?type=transfer"
         result = await self._request_get(url)
         return result
+
+    async def get_share_folder(self,share_id: str, parent_id: str, pass_code: str) -> Dict[str, Any]:
+        """
+        获取分享链接下文件夹内容
+        """
+        data = {
+            'limit': "100",
+            'thumbnail_size': "SIZE_LARGE",
+            'order': "6",
+            'share_id': share_id,
+            'parent_id': parent_id,
+            'pass_code_token': pass_code
+        }
+        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/share/detail"
+        result = await self._request_post(url,data=data)
+        return result.get("files")
+
+    async def get_share_info(self,share_link:str,pass_code:str = None) -> ValueError | dict[str, Any] | list[dict[str | Any, str | Any]]:
+        """
+        获取分享链接下内容
+        """
+        parent_list = []
+        parent_dict = {}
+        match = re.search(r'/s/([^/]+)(?:.*/([^/]+))?$', share_link)
+        if match:
+            share_id = match.group(1)
+            parent_id = match.group(2) if match.group(2) else None
+        else:
+            return ValueError("Share Link Is Not Right")
+        result = await self.get_share_folder(share_id, parent_id, pass_code)
+        return result
+
+    async def restore(self, share_id:str, pass_code_token:str, file_ids:list)-> Dict[str, Any]:
+        """
+
+        Args:
+            share_id: 分享链接eg. /s/VO8BcRb-XXXXX 的 VO8BcRb-XXXXX
+            pass_code_token: get_share_info获取, 无密码则留空
+            file_ids: 需要转存的文件/文件夹ID列表, get_share_info获取id值
+        """
+
+        data = {
+                  "share_id": share_id,
+                  "pass_code_token": pass_code_token,
+                  "file_ids": file_ids
+                }
+
+        result = await self._request_post(
+            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share/restore",
+            data=data
+        )
+        return result
+
