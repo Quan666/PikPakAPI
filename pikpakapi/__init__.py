@@ -1,16 +1,17 @@
+import asyncio
 import binascii
-from enum import verify
-from hashlib import md5
 import json
 import logging
-import asyncio
-from base64 import b64decode, b64encode
-import sys
 import re
+import sys
+from base64 import b64decode, b64encode
+from hashlib import md5
 from typing import Any, Dict, List, Optional
 
-from bs4 import BeautifulSoup
+import httpx
 
+from .PikpakException import PikpakException
+from .enums import DownloadStatus
 from .utils import (
     CLIENT_ID,
     CLIENT_SECRET,
@@ -20,11 +21,6 @@ from .utils import (
     captcha_sign,
     get_timestamp,
 )
-import httpx
-
-
-from .PikpakException import PikpakException
-from .enums import DownloadStatus
 
 
 class PikPakApi:
@@ -877,7 +873,7 @@ class PikPakApi:
         result = await self._request_get(url)
         return result
 
-    async def get_share_folder(self,share_id: str, parent_id: str, pass_code_token: str) -> Dict[str, Any]:
+    async def get_share_folder(self,share_id: str, parent_id: str, pass_code: str) -> Dict[str, Any]:
         """
         获取分享链接下文件夹内容
         """
@@ -887,15 +883,15 @@ class PikPakApi:
             'order': "6",
             'share_id': share_id,
             'parent_id': parent_id,
-            'pass_code_token': pass_code_token
+            'pass_code_token': pass_code
         }
         url = f"https://{self.PIKPAK_API_HOST}/drive/v1/share/detail"
         result = await self._request_post(url,data=data)
-        return result
+        return result.get("files")
 
-    async def get_share_info(self,share_link:str) -> ValueError | dict[str, Any] | list[dict[str | Any, str | Any]]:
+    async def get_share_info(self,share_link:str,pass_code:str = None) -> ValueError | dict[str, Any] | list[dict[str | Any, str | Any]]:
         """
-        获取分享链接根目录下内容
+        获取分享链接下内容
         """
         parent_list = []
         parent_dict = {}
@@ -905,59 +901,15 @@ class PikPakApi:
             parent_id = match.group(2) if match.group(2) else None
         else:
             return ValueError("Share Link Is Not Right")
-        async with httpx.AsyncClient(verify=False) as client:
-            response = await client.get(share_link)
-            # 使用BeautifulSoup解析HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # 找到包含JSON数据的script标签
-            script_tag = soup.find('script', {'id': '__NUXT_DATA__'})
-
-            if script_tag:
-                # 获取母目录文件路径
-                json_str = script_tag.string
-
-                # 将JSON字符串解析为Python列表
-                data = json.loads(json_str)
-
-                # 获取 pass_code_token
-                pass_code_token_index = data[4]['pass_code_token']
-                pass_code_token = data[pass_code_token_index]
-                if parent_id:
-                    # 若已有次级文件夹
-                    result = await self.get_share_folder(share_id, parent_id, pass_code_token)
-                    result.update({"pass_code_token": pass_code_token})
-                    result.update({"share_id": share_id})
-                    return result.get("files")
-                else:
-                    # 获取文件(夹)列表指针
-                    files_index = data[4]["files"]
-
-                    # 读取文件(夹)列表
-                    files_list = data[files_index]
-
-                    # 获取文件(夹)id
-                    for item in files_list:
-                        for key in ['kind', 'id', 'parent_id', 'name', 'user_id', 'size', 'revision',
-                                    'file_extension', 'mime_type', 'starred', 'web_content_link', 'created_time',
-                                    'modified_time', 'icon_link', 'thumbnail_link', 'md5_checksum', 'hash', 'links',
-                                    'phase', 'audit', 'medias', 'trashed', 'delete_time', 'original_url',
-                                    'original_file_index', 'space', 'apps', 'writable', 'folder_type', 'sort_name',
-                                    'user_modified_time', 'spell_name', 'file_category', 'tags',
-                                    'reference_events']:
-                            parent_dict.update({key: data[data[item][key]]})
-                        parent_dict.update({"pass_code_token": pass_code_token})
-                        parent_dict.update({"share_id": share_id})
-                        parent_list.append(parent_dict.copy())
-                        parent_dict.clear()
-                    return parent_list
+        result = await self.get_share_folder(share_id, parent_id, pass_code)
+        return result
 
     async def restore(self, share_id:str, pass_code_token:str, file_ids:list)-> Dict[str, Any]:
         """
 
         Args:
             share_id: 分享链接eg. /s/VO8BcRb-XXXXX 的 VO8BcRb-XXXXX
-            pass_code_token: get_share_info获取
+            pass_code_token: get_share_info获取, 无密码则留空
             file_ids: 需要转存的文件/文件夹ID列表, get_share_info获取id值
         """
 
