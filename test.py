@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 import httpx
 
@@ -17,6 +18,11 @@ async def test():
     )
     await client.login()
     await client.refresh_access_token()
+    tasks = await client.offline_list()
+    print(json.dumps(tasks, indent=4))
+    print("=" * 30, end="\n\n")
+    if tasks.get("tasks"):
+        await client.delete_tasks(task_ids=[tasks["tasks"][0]["id"]])
     print(json.dumps(client.get_user_info(), indent=4))
     print("=" * 30, end="\n\n")
 
@@ -103,4 +109,7 @@ async def test():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     asyncio.run(test())
