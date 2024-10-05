@@ -2,7 +2,8 @@ import hashlib
 from uuid import uuid4
 import time
 
-CLIENT_ID = "YNxT9w7GMdWvEOKa"
+PIKPAK_CLIENT_ID = "YNxT9w7GMdWvEOKa"
+FILEPAX_CLIENT_ID = "ZbHPv-5xPR83hucb"
 CLIENT_SECRET = "dbw2OtmVEeuUvIptb1Coyg"
 CLIENT_VERSION = "1.47.1"
 PACKAG_ENAME = "com.pikcloud.pikpak"
@@ -50,7 +51,7 @@ def captcha_sign(device_id: str, timestamp: str) -> str:
     在网页端的js中, 搜索 captcha_sign, 可以找到对应的js代码
 
     """
-    sign = CLIENT_ID + CLIENT_VERSION + PACKAG_ENAME + device_id + timestamp
+    sign = PIKPAK_CLIENT_ID + CLIENT_VERSION + PACKAG_ENAME + device_id + timestamp
     for salt in SALTS:
         sign = hashlib.md5((sign + salt).encode()).hexdigest()
     return f"1.{sign}"
@@ -81,7 +82,7 @@ def build_custom_user_agent(device_id, user_id):
         f"ANDROID-{APP_NAME}/{CLIENT_VERSION}",
         "protocolVersion/200",
         "accesstype/",
-        f"clientid/{CLIENT_ID}",
+        f"clientid/{PIKPAK_CLIENT_ID}",
         f"clientversion/{CLIENT_VERSION}",
         "action_type/",
         "networktype/WIFI",
