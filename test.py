@@ -9,12 +9,7 @@ from pikpakapi import PikPakApi
 
 async def test():
     client = PikPakApi(
-        username="your_username",
-        password="your_password",
-        httpx_client_args={
-            "proxy": "http://127.0.0.1:1081",
-            "transport": httpx.AsyncHTTPTransport(retries=3),
-        },
+        username="mhdzumair@gmail.com", password="Zumair@786", host="pikpak"
     )
     await client.login()
     await client.refresh_access_token()

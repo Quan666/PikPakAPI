@@ -5,20 +5,21 @@ import logging
 import re
 from base64 import b64decode, b64encode
 from hashlib import md5
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 import httpx
 
 from .PikpakException import PikpakException, PikpakRetryException
 from .enums import DownloadStatus
 from .utils import (
-    CLIENT_ID,
+    PIKPAK_CLIENT_ID,
     CLIENT_SECRET,
     CLIENT_VERSION,
     PACKAG_ENAME,
     build_custom_user_agent,
     captcha_sign,
     get_timestamp,
+    FILEPAX_CLIENT_ID,
 )
 
 
@@ -29,6 +30,8 @@ class PikPakApi:
     Attributes:
         PIKPAK_API_HOST: str - PikPak API host
         PIKPAK_USER_HOST: str - PikPak user API host
+        FILEPAX_API_HOST: str - FilePax API host
+        FILEPAX_USER_HOST: str - FilePax user API host
 
         username: str - username of the user
         password: str - password of the user
@@ -41,6 +44,8 @@ class PikPakApi:
 
     PIKPAK_API_HOST = "api-drive.mypikpak.com"
     PIKPAK_USER_HOST = "user.mypikpak.com"
+    FILEPAX_API_HOST = "api-drive.filepax.com"
+    FILEPAX_USER_HOST = "user.filepax.com"
 
     def __init__(
         self,
@@ -51,6 +56,7 @@ class PikPakApi:
         device_id: Optional[str] = None,
         request_max_retries: int = 3,
         request_initial_backoff: float = 3.0,
+        host: Literal["pikpak", "filepax"] = "pikpak",
     ):
         """
         username: str - username of the user
@@ -60,6 +66,7 @@ class PikPakApi:
         device_id: str - device id to identify the device
         request_max_retries: int - maximum number of retries for requests
         request_initial_backoff: float - initial backoff time for retries
+        host: str - host to use, pikpak or filepax
         """
 
         self.username = username
@@ -67,6 +74,13 @@ class PikPakApi:
         self.encoded_token = encoded_token
         self.max_retries = request_max_retries
         self.initial_backoff = request_initial_backoff
+        self.host = host
+        self.api_host = (
+            self.PIKPAK_API_HOST if host == "pikpak" else self.FILEPAX_API_HOST
+        )
+        self.user_host = (
+            self.PIKPAK_USER_HOST if host == "pikpak" else self.FILEPAX_USER_HOST
+        )
 
         self.access_token = None
         self.refresh_token = None
@@ -247,7 +261,7 @@ class PikPakApi:
         self.encoded_token = b64encode(json.dumps(token_data).encode()).decode()
 
     async def captcha_init(self, action: str, meta: dict = None) -> Dict[str, Any]:
-        url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/shield/captcha/init"
+        url = f"https://{self.user_host}/v1/shield/captcha/init"
         if not meta:
             t = f"{get_timestamp()}"
             meta = {
@@ -258,7 +272,9 @@ class PikPakApi:
                 "timestamp": t,
             }
         params = {
-            "client_id": CLIENT_ID,
+            "client_id": (
+                PIKPAK_CLIENT_ID if self.host == "pikpak" else FILEPAX_CLIENT_ID
+            ),
             "action": action,
             "device_id": self.device_id,
             "meta": meta,
@@ -269,7 +285,8 @@ class PikPakApi:
         """
         Login to PikPak
         """
-        login_url = f"https://{PikPakApi.PIKPAK_USER_HOST}/v1/auth/signin"
+        login_path = "/v1/auth/signin"
+        login_url = f"https://{self.user_host}{login_path}"
         metas = {}
         if not self.username or not self.password:
             raise PikpakException("username and password are required")
@@ -280,25 +297,36 @@ class PikPakApi:
         else:
             metas["username"] = self.username
         result = await self.captcha_init(
-            action=f"POST:{login_url}",
+            action=f"POST:{login_url if self.host == 'pikpak' else login_path}",
             meta=metas,
         )
         captcha_token = result.get("captcha_token", "")
         if not captcha_token:
             raise PikpakException("captcha_token get failed")
-        login_data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "password": self.password,
-            "username": self.username,
-            "captcha_token": captcha_token,
-        }
+        if self.host == "pikpak":
+            login_data = {
+                "client_id": PIKPAK_CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "password": self.password,
+                "username": self.username,
+                "captcha_token": captcha_token,
+            }
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+        else:
+            login_data = {
+                "client_id": FILEPAX_CLIENT_ID,
+                "password": self.password,
+                "username": self.username,
+            }
+            headers = {
+                "Content-Type": "application/json",
+            }
         user_info = await self._request_post(
             login_url,
             login_data,
-            {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers,
         )
         self.access_token = user_info["access_token"]
         self.refresh_token = user_info["refresh_token"]
@@ -309,9 +337,11 @@ class PikPakApi:
         """
         Refresh access token
         """
-        refresh_url = f"https://{self.PIKPAK_USER_HOST}/v1/auth/token"
+        refresh_url = f"https://{self.user_host}/v1/auth/token"
         refresh_data = {
-            "client_id": CLIENT_ID,
+            "client_id": (
+                PIKPAK_CLIENT_ID if self.host == "pikpak" else FILEPAX_CLIENT_ID
+            ),
             "refresh_token": self.refresh_token,
             "grant_type": "refresh_token",
         }
@@ -342,7 +372,7 @@ class PikPakApi:
 
         创建文件夹
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
+        url = f"https://{self.api_host}/drive/v1/files"
         data = {
             "kind": "drive#folder",
             "name": name,
@@ -357,7 +387,7 @@ class PikPakApi:
 
         将文件夹、文件移动到回收站
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchTrash"
+        url = f"https://{self.api_host}/drive/v1/files:batchTrash"
         data = {
             "ids": ids,
         }
@@ -370,7 +400,7 @@ class PikPakApi:
 
         将文件夹、文件移出回收站
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchUntrash"
+        url = f"https://{self.api_host}/drive/v1/files:batchUntrash"
         data = {
             "ids": ids,
         }
@@ -383,7 +413,7 @@ class PikPakApi:
 
         永远删除文件夹、文件, 慎用
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchDelete"
+        url = f"https://{self.api_host}/drive/v1/files:batchDelete"
         data = {
             "ids": ids,
         }
@@ -400,7 +430,7 @@ class PikPakApi:
 
         离线下载磁力链
         """
-        download_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
+        download_url = f"https://{self.api_host}/drive/v1/files"
         download_data = {
             "kind": "drive#file",
             "name": name,
@@ -428,7 +458,7 @@ class PikPakApi:
         """
         if phase is None:
             phase = ["PHASE_TYPE_RUNNING", "PHASE_TYPE_ERROR"]
-        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/tasks"
+        list_url = f"https://{self.api_host}/drive/v1/tasks"
         list_data = {
             "type": "offline",
             "thumbnail_size": "SIZE_SMALL",
@@ -446,7 +476,7 @@ class PikPakApi:
 
         离线下载文件信息
         """
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}"
+        url = f"https://{self.api_host}/drive/v1/files/{file_id}"
         result = await self._request_get(url, {"thumbnail_size": "SIZE_LARGE"})
         return result
 
@@ -471,7 +501,7 @@ class PikPakApi:
         }
         if additional_filters:
             default_filters.update(additional_filters)
-        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/files"
+        list_url = f"https://{self.api_host}/drive/v1/files"
         list_data = {
             "parent_id": parent_id,
             "thumbnail_size": "SIZE_MEDIUM",
@@ -480,7 +510,13 @@ class PikPakApi:
             "page_token": next_page_token,
             "filters": json.dumps(default_filters),
         }
+        # FixME
+        response = await self.captcha_init(
+            action="GET:/drive/v1/files",
+        )
+        self.captcha_token = response.get("captcha_token")
         result = await self._request_get(list_url, list_data)
+        self.captcha_token = None
         return result
 
     async def events(
@@ -492,7 +528,7 @@ class PikPakApi:
 
         获取最近添加事件列表
         """
-        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/events"
+        list_url = f"https://{self.api_host}/drive/v1/events"
         list_data = {
             "thumbnail_size": "SIZE_MEDIUM",
             "limit": size,
@@ -507,7 +543,7 @@ class PikPakApi:
 
         重试离线下载任务
         """
-        list_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/task"
+        list_url = f"https://{self.api_host}/drive/v1/task"
         list_data = {
             "type": "offline",
             "create_type": "RETRY",
@@ -526,7 +562,7 @@ class PikPakApi:
         delete tasks by task ids
         task_ids: List[str] - task ids to delete
         """
-        delete_url = f"https://{self.PIKPAK_API_HOST}/drive/v1/tasks"
+        delete_url = f"https://{self.api_host}/drive/v1/tasks"
         params = {
             "task_ids": task_ids,
             "delete_files": delete_files,
@@ -650,7 +686,7 @@ class PikPakApi:
             else {}
         )
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchMove",
+            url=f"https://{self.api_host}/drive/v1/files:batchMove",
             data={
                 "ids": ids,
                 "to": to,
@@ -677,7 +713,7 @@ class PikPakApi:
             else {}
         )
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:batchCopy",
+            url=f"https://{self.api_host}/drive/v1/files:batchCopy",
             data={
                 "ids": ids,
                 "to": to,
@@ -731,7 +767,7 @@ class PikPakApi:
         )
         self.captcha_token = result.get("captcha_token")
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{file_id}?",
+            url=f"https://{self.api_host}/drive/v1/files/{file_id}?",
         )
         self.captcha_token = None
         return result
@@ -748,7 +784,7 @@ class PikPakApi:
             "name": new_file_name,
         }
         result = await self._request_patch(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files/{id}",
+            url=f"https://{self.api_host}/drive/v1/files/{id}",
             data=data,
         )
         return result
@@ -766,7 +802,7 @@ class PikPakApi:
             "ids": ids,
         }
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:star",
+            url=f"https://{self.api_host}/drive/v1/files:star",
             data=data,
         )
         return result
@@ -784,7 +820,7 @@ class PikPakApi:
             "ids": ids,
         }
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/files:unstar",
+            url=f"https://{self.api_host}/drive/v1/files:unstar",
             data=data,
         )
         return result
@@ -838,7 +874,7 @@ class PikPakApi:
             "pass_code_option": "REQUIRED" if need_password else "NOT_REQUIRED",
         }
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share",
+            url=f"https://{self.api_host}/drive/v1/share",
             data=data,
         )
         return result
@@ -862,19 +898,19 @@ class PikPakApi:
         }
         """
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/about",
+            url=f"https://{self.api_host}/drive/v1/about",
         )
         return result
 
     async def get_invite_code(self):
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/vip/v1/activity/inviteCode",
+            url=f"https://{self.api_host}/vip/v1/activity/inviteCode",
         )
         return result["code"]
 
     async def vip_info(self):
         result = await self._request_get(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/privilege/vip",
+            url=f"https://{self.api_host}/drive/v1/privilege/vip",
         )
         return result
 
@@ -882,7 +918,7 @@ class PikPakApi:
         """
         Get transfer quota
         """
-        url = f"https://{self.PIKPAK_API_HOST}/vip/v1/quantity/list?type=transfer"
+        url = f"https://{self.api_host}/vip/v1/quantity/list?type=transfer"
         result = await self._request_get(url)
         return result
 
@@ -905,7 +941,7 @@ class PikPakApi:
             "parent_id": parent_id,
             "pass_code_token": pass_code_token,
         }
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/share/detail"
+        url = f"https://{self.api_host}/drive/v1/share/detail"
         return await self._request_get(url, params=data)
 
     async def get_share_info(
@@ -933,7 +969,7 @@ class PikPakApi:
             "parent_id": parent_id,
             "pass_code": pass_code,
         }
-        url = f"https://{self.PIKPAK_API_HOST}/drive/v1/share"
+        url = f"https://{self.api_host}/drive/v1/share"
         return await self._request_get(url, params=data)
 
     async def restore(
@@ -952,6 +988,6 @@ class PikPakApi:
             "file_ids": file_ids,
         }
         result = await self._request_post(
-            url=f"https://{self.PIKPAK_API_HOST}/drive/v1/share/restore", data=data
+            url=f"https://{self.api_host}/drive/v1/share/restore", data=data
         )
         return result
