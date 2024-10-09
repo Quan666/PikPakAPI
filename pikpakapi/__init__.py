@@ -5,7 +5,7 @@ import logging
 import re
 from base64 import b64decode, b64encode
 from hashlib import md5
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable, Coroutine
 
 import httpx
 
@@ -36,7 +36,7 @@ class PikPakApi:
         access_token: str - access token of the user , expire in 7200
         refresh_token: str - refresh token of the user
         user_id: str - user id of the user
-
+        token_refresh_callback: Callable[[PikPakApi], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
     """
 
     PIKPAK_API_HOST = "api-drive.mypikpak.com"
@@ -51,6 +51,9 @@ class PikPakApi:
         device_id: Optional[str] = None,
         request_max_retries: int = 3,
         request_initial_backoff: float = 3.0,
+        token_refresh_callback: Optional[
+            Callable[["PikPakApi"], Coroutine[Any, Any, None]]
+        ] = None,
     ):
         """
         username: str - username of the user
@@ -60,6 +63,7 @@ class PikPakApi:
         device_id: str - device id to identify the device
         request_max_retries: int - maximum number of retries for requests
         request_initial_backoff: float - initial backoff time for retries
+        token_refresh_callback: Callable[[PikPakApi], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
         """
 
         self.username = username
@@ -67,6 +71,7 @@ class PikPakApi:
         self.encoded_token = encoded_token
         self.max_retries = request_max_retries
         self.initial_backoff = request_initial_backoff
+        self.token_refresh_callback = token_refresh_callback
 
         self.access_token = None
         self.refresh_token = None
@@ -320,6 +325,8 @@ class PikPakApi:
         self.refresh_token = user_info["refresh_token"]
         self.user_id = user_info["sub"]
         self.encode_token()
+        if self.token_refresh_callback:
+            await self.token_refresh_callback(self)
 
     def get_user_info(self) -> Dict[str, Optional[str]]:
         """
