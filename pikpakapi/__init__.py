@@ -36,7 +36,7 @@ class PikPakApi:
         access_token: str - access token of the user , expire in 7200
         refresh_token: str - refresh token of the user
         user_id: str - user id of the user
-        token_refresh_callback: Callable[[PikPakApi, Dict[str, Any]], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
+        token_refresh_callback: Callable[[PikPakApi, *Any], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
         token_refresh_callback_kwargs: Dict[str, Any] - custom arguments to be passed to the token refresh callback
     """
 
@@ -53,7 +53,7 @@ class PikPakApi:
         request_max_retries: int = 3,
         request_initial_backoff: float = 3.0,
         token_refresh_callback: Optional[
-            Callable[["PikPakApi", Dict[str, Any]], Coroutine[Any, Any, None]]
+            Callable[["PikPakApi", *Any], Coroutine[Any, Any, None]]
         ] = None,
         token_refresh_callback_kwargs: Optional[Dict[str, Any]] = None,
     ):
@@ -65,7 +65,7 @@ class PikPakApi:
         device_id: str - device id to identify the device
         request_max_retries: int - maximum number of retries for requests
         request_initial_backoff: float - initial backoff time for retries
-        token_refresh_callback: Callable[[PikPakApi, Dict[str, Any]], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
+        token_refresh_callback: Callable[[PikPakApi, *Any], Coroutine[Any, Any, None]] - async callback function to be called after token refresh
         token_refresh_callback_kwargs: Dict[str, Any] - custom arguments to be passed to the token refresh callback
         """
 
