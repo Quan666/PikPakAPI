@@ -7,6 +7,10 @@ import httpx
 from pikpakapi import PikPakApi
 
 
+async def log_token(client, extra_data):
+    logging.info(f"Token: {client.encoded_token}, Extra Data: {extra_data}")
+
+
 async def test():
     client = PikPakApi(
         username="your_username",
@@ -15,6 +19,8 @@ async def test():
             "proxy": "http://127.0.0.1:1081",
             "transport": httpx.AsyncHTTPTransport(retries=3),
         },
+        token_refresh_callback=log_token,
+        token_refresh_callback_kwargs={"extra_data": "test"},
     )
     await client.login()
     await client.refresh_access_token()
