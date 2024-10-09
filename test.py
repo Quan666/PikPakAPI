@@ -7,8 +7,8 @@ import httpx
 from pikpakapi import PikPakApi
 
 
-async def log_token(client):
-    logging.info(f"Token: {client.encoded_token}")
+async def log_token(client, extra_data):
+    logging.info(f"Token: {client.encoded_token}, Extra Data: {extra_data}")
 
 
 async def test():
@@ -20,6 +20,7 @@ async def test():
             "transport": httpx.AsyncHTTPTransport(retries=3),
         },
         token_refresh_callback=log_token,
+        token_refresh_callback_kwargs={"extra_data": "test"},
     )
     await client.login()
     await client.refresh_access_token()
