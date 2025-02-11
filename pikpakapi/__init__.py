@@ -1,11 +1,13 @@
 import asyncio
 import binascii
+import inspect
 import json
 import logging
 import re
 import sys
 from base64 import b64decode, b64encode
 from hashlib import md5
+from types import NoneType
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -68,6 +70,8 @@ class PikPakApi:
         self.access_token = None
         self.refresh_token = None
         self.user_id = None
+        self.captcha_token = None
+        self.user_agent: Optional[str] = None
 
         # device_id is used to identify the device, if not provided, a random device_id will be generated, 32 characters
         self.device_id = (
@@ -75,15 +79,12 @@ class PikPakApi:
             if device_id
             else md5(f"{self.username}{self.password}".encode()).hexdigest()
         )
-        self.captcha_token = None
-
+        self.httpx_client_args = httpx_client_args
         self.httpx_client = httpx.AsyncClient(
             **httpx_client_args if httpx_client_args else {}
         )
 
         self._path_id_cache: Dict[str, Any] = {}
-
-        self.user_agent: Optional[str] = None
 
         if self.encoded_token:
             self.decode_token()
@@ -92,7 +93,35 @@ class PikPakApi:
         else:
             raise PikpakException("username and password or encoded_token is required")
 
-    def build_custom_user_agent(self) -> str:
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PikPakApi":
+        """
+        Create PikPakApi object from a dictionary
+        """
+        params = inspect.signature(cls).parameters
+        filtered_data = {key: data[key] for key in params if key in data}
+        client = cls(
+            **filtered_data,
+        )
+        client.__dict__.update(data)
+        return client
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Returns the PikPakApi object as a dictionary
+        """
+        data = self.__dict__.copy()
+        # remove can't be serialized attributes
+        keys_to_delete = [
+            k
+            for k, v in data.items()
+            if not type(v) in [str, int, float, bool, list, dict, NoneType]
+        ]
+        for k in keys_to_delete:
+            del data[k]
+        return data
+
+    def build_custom_user_agent(self) -> Optional[str]:
 
         self.user_agent = build_custom_user_agent(
             device_id=self.device_id,
@@ -603,7 +632,7 @@ class PikPakApi:
                 next_page_token = data.get("next_page_token")
             elif create:
                 data = await self.create_folder(name=paths[count], parent_id=parent_id)
-                id = data.get("file").get("id")
+                id = data.get("file", {}).get("id")
                 record = {
                     "id": id,
                     "name": paths[count],
