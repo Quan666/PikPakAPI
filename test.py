@@ -114,8 +114,34 @@ async def test():
     )
 
 
+async def test_save():
+    client = PikPakApi(
+        username="your_username",
+        password="your_password",
+    )
+    await client.login()
+    await client.refresh_access_token()
+    with open("pikpak.json", "w") as f:
+        f.write(json.dumps(client.to_dict(), indent=4))
+
+    with open("pikpak.json", "r") as f:
+        data = json.load(f)
+        client = PikPakApi.from_dict(data)
+        await client.refresh_access_token()
+        print(json.dumps(client.get_user_info(), indent=4))
+        print(
+            json.dumps(
+                await client.get_share_info(
+                    "https://mypikpak.com/s/VO8BcRb-0fibD0Ncymp8nxSMo1"
+                ),
+                indent=4,
+            )
+        )
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
     asyncio.run(test())
+    asyncio.run(test_save())
