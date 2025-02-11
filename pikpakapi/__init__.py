@@ -1,10 +1,12 @@
 import asyncio
 import binascii
+import inspect
 import json
 import logging
 import re
 from base64 import b64decode, b64encode
 from hashlib import md5
+from types import NoneType
 from typing import Any, Dict, List, Optional, Callable, Coroutine
 
 import httpx
@@ -100,6 +102,34 @@ class PikPakApi:
             pass
         else:
             raise PikpakException("username and password or encoded_token is required")
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PikPakApi":
+        """
+        Create PikPakApi object from a dictionary
+        """
+        params = inspect.signature(cls).parameters
+        filtered_data = {key: data[key] for key in params if key in data}
+        client = cls(
+            **filtered_data,
+        )
+        client.__dict__.update(data)
+        return client
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Returns the PikPakApi object as a dictionary
+        """
+        data = self.__dict__.copy()
+        # remove can't be serialized attributes
+        keys_to_delete = [
+            k
+            for k, v in data.items()
+            if not type(v) in [str, int, float, bool, list, dict, NoneType]
+        ]
+        for k in keys_to_delete:
+            del data[k]
+        return data
 
     def build_custom_user_agent(self) -> str:
 
